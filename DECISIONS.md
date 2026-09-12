@@ -68,6 +68,32 @@ presentation is a live question; this build does not change it.
 
 Items 3 and 4 are untouched; no evidence yet.
 
+## Corrections made to the SRS itself (2026-09-12)
+
+The SRS is the authoritative document, so it was edited in place rather than
+rewritten: `docs/Pokharel_CISC699_SRS_rev2.docx` differs from the original in
+four paragraphs, one added revision note, and three added rows of the
+definitions table. No requirement was added, removed or renumbered.
+
+1. **Section 1 and UC11 named different evaluation metrics.** Section 1
+   promised "AUC-PR, Brier score, and per-subgroup false negative rate"; UC11
+   step 6 specified "AUC-ROC, AUC-PR, and Brier score" per subgroup. Both now
+   name the same set, and Section 1 states what the false negative rate is
+   measured at.
+2. **UC10's postcondition contradicted UC04's exception flow.** UC10 asserted
+   that WeeklyFeatures rows exist "for every student and every week"; UC04 3a
+   describes a student with "a registration but no WeeklyFeatures rows" as a
+   normal state. UC10 now matches what the data supports: 3,365 of 32,593
+   registrations have no clickstream at all.
+3. **Risk band, advisory capacity and false negative rate were used and never
+   defined.** Risk band appears five times across UC03, UC04 and UC08, with no
+   entry in Section 3.1.3 and no thresholds anywhere. All three are now defined
+   there.
+
+Section 3.3.7 is left as written, because those were genuinely the open
+questions at specification time; it now points here for the evidence gathered
+since.
+
 ## Decisions the SRS left to the build (2026-09-12)
 
 Two things the SRS requires and does not define. Both are recorded here because
