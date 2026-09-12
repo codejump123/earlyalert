@@ -10,12 +10,11 @@ per-student features from the Open University Learning Analytics Dataset
 (OULAD), trains classifiers at three prediction horizons, and evaluates them
 overall and per demographic subgroup.
 
-The SRS is the authoritative source for behavior. `CLAUDE.md` summarizes it
-for build purposes.
+The SRS is the authoritative source for behavior.
 
 ## Environment
 
-Installed 2026-09-12 on macOS 15 (arm64).
+Installed 2026-09-12 on macOS 26.4.1 (Apple silicon, arm64).
 
 | Component | Version |
 |---|---|
@@ -56,8 +55,27 @@ python3.12 -m venv .venv
 Only `admin1` is a Django superuser, so only it reaches `/django-admin/`,
 where an administrator manages users and assigns presentations.
 
-A newly seeded account has no presentation assignments, so the selector is
-empty until an administrator assigns presentations in the Django admin.
+### Loading a cohort
+
+The steps above give you a running application with an empty database. Until a
+cohort is loaded and scored, the ranking page has nothing to show. Sign in at
+http://127.0.0.1:8000/ as `admin1` and work through the three administrative
+pages in order:
+
+1. **`/admin/upload/`** — select all seven OULAD CSV files together and submit.
+   Nothing is stored unless every one passes validation. About 1 second.
+2. **`/admin/rebuild/`** — builds the weekly features. About 45 seconds for the
+   full dataset; the progress log shows chunk number and rows read.
+3. **`/admin/retrain/`** — fits a model per horizon and writes the risk scores.
+   About 15 seconds.
+
+Then assign presentations to `instructor1` and `advisor1` in `/django-admin/`
+(Users → the account → Profile → Assignments). **A newly seeded account has no
+assignments, so its presentation selector is empty until this is done** — the
+application looks broken otherwise, and it is not.
+
+The seven files come from the UCI Machine Learning Repository, dataset 349, or
+from analyse.kmi.open.ac.uk/open_dataset.
 
 ## Endpoints
 
@@ -88,12 +106,18 @@ Neither adds a URL.
 ## Tests
 
 ```sh
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest                     # all 312, about 60 seconds
+.venv/bin/python -m pytest tests/test_train.py # one module
+.venv/bin/python -m pytest -k tc10 -v          # one test case by number
 ```
 
-Pipeline tests run without a server, because `pipeline/` imports no Django.
-Test data is a synthetic 50-student cohort in `tests/fixtures/`; no real OULAD
-rows appear in any test.
+312 tests, executing the twenty test cases TC1 through TC20. All are
+automated; none is run by hand. They need no cohort loaded — the fixtures
+supply their own data.
+
+Pipeline tests run with no database and no server, because `pipeline/` imports
+no Django. Test data is a synthetic 50-student cohort in `tests/fixtures/`,
+produced by a deterministic generator; no real OULAD row appears in any test.
 
 ## Two definitions the SRS required and did not supply
 
@@ -188,4 +212,4 @@ one chunk plus three accumulators, never the file.
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | done |
 | 6 | Intervention workflow | TC7, TC8, TC9 | done |
 | 7 | Audit view and polish | TC17 | done |
-| 8 | Experiment: the 36-cell grid and figures | — | done |
+| 8 | Experiment: the 36-cell grid and figures | TC19, TC20, `test_experiment.py` | done |
