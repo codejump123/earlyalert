@@ -8,7 +8,7 @@ authoritative; anything here that it later contradicts gets corrected.
 
 ### 5. How module CCC is handled under the year split
 
-**2026-09-12 — confirmed, as the brief asked, against courses.csv.** CCC has
+**2026-09-12 — confirmed against courses.csv, and now implemented.** CCC has
 exactly two presentations, 2014B and 2014J. Under the train-on-2013 /
 test-on-2014 split it therefore contributes no training rows at all, only test
 rows. Verified on the real dataset after ingest:
@@ -17,11 +17,20 @@ rows. Verified on the real dataset after ingest:
 CCC presentations: ['2014B', '2014J']
 ```
 
-The default stands: exclude CCC from evaluation and note it. Revisit in Phase 4
-when the cohort is actually built — the alternative is to keep CCC in the test
-set and report its metrics separately, which measures generalization to an
-unseen module rather than to an unseen year, and answers a different question
-than the one the experiment asks.
+The default is implemented: `pipeline.train.drop_untrained_modules` removes
+such a module's rows from the test split before any metric is computed, in both
+the experiment and the application's retrain. It is not a silent drop — the
+count appears in the log, in `results/README.txt`, and in the retrain's result.
+
+The application still *scores* CCC students (19,676 risk scores across the three
+horizons), because an advisor assigned to CCC/2014B needs a ranking. Only the
+metrics exclude them, which is what "exclude from evaluation" asks for. An
+advisor should know those scores come from a model that never saw the module;
+the ModelVersion's metrics do not cover it.
+
+This mattered more than expected: CCC is 21.5% of the week 8 test set, and
+including it changed which classifier won at every horizon and reversed the
+ordering of the D and E feature sets.
 
 ### 2. Whether week 4 is a meaningful horizon given late registrants
 
@@ -31,20 +40,18 @@ strongest if AUC-PR is read raw.
 
 | Horizon | Best AUC-PR | Baseline | Lift | AUC-ROC | Recall @ P50 |
 |---|---|---|---|---|---|
-| week 4 | 0.346 | 0.197 | x1.75 | 0.664 | 0.134 |
-| week 8 | 0.307 | 0.163 | x1.88 | 0.694 | 0.036 |
-| week 12 | 0.258 | 0.135 | x1.91 | 0.688 | 0.007 |
+| week 4 | 0.277 | 0.167 | x1.66 | 0.646 | 0.044 |
+| week 8 | 0.287 | 0.143 | x2.01 | 0.682 | 0.076 |
+| week 12 | 0.235 | 0.117 | x2.01 | 0.686 | 0.007 |
 
-Week 4 has the highest raw AUC-PR and by far the best recall at precision
-0.50, because a fifth of the week 4 cohort withdraws and a high-precision
-queue is therefore easy to fill. It has the lowest lift and the lowest
-AUC-ROC: the model at week 4 is separating students less well, and is carried
-by the base rate.
+Week 4 has the lowest lift and the lowest AUC-ROC: the model is separating
+students least well there, and its higher raw AUC-PR is the base rate rather
+than the model. Week 8 is where both discrimination and a usable precision
+queue arrive, and week 12 adds nothing to either (AUC-ROC 0.682 to 0.686, lift
+flat at x2.01, recall at precision 0.50 collapsing to 0.007).
 
-The practical reading is the opposite of the usual worry. Week 4 is worth
-keeping, not because it discriminates well, but because it is when a queue at
-usable precision can actually be filled. Week 8 is where discrimination
-arrives, and week 12 adds nothing to it (AUC-ROC 0.694 to 0.688).
+So week 4 is meaningful as an early warning but weak as a ranking, and the
+honest reading is that the horizon worth operating on is week 8.
 
 ### 1. Whether the n < 20 threshold should scale with cohort size
 
@@ -66,110 +73,73 @@ Items 3 and 4 are untouched; no evidence yet.
 36 cells on the real dataset, train 2013 / test 2014, in 32 seconds.
 `results/grid.csv` is the table Chapter 4 is written from.
 
-### Assessment behaviour carries the signal; clicks barely beat demographics
+**These numbers supersede an earlier run.** The first pass named CCC as having
+no training year but did not remove it from the test split, so every cell was
+scored on a test set that was a fifth an unseen module (3,239 of 15,092 rows at
+week 8). The SRS default is to exclude it. Corrected, and the correction moved
+the headline result — see the feature-set section below.
+
+### Assessment behaviour carries the signal, and clicks are worth less than demographics
 
 Lift over the per-horizon baseline, best classifier per cell:
 
 | Feature set | week 4 | week 8 | week 12 |
 |---|---|---|---|
-| D demographic | x1.31 | x1.32 | x1.28 |
-| A assessment | x1.63 | x1.79 | x1.78 |
-| E engagement | x1.22 | x1.31 | x1.30 |
-| All | x1.75 | x1.88 | x1.91 |
+| D demographic | x1.41 | x1.40 | x1.35 |
+| A assessment | x1.44 | x1.91 | x1.84 |
+| E engagement | x1.21 | x1.29 | x1.29 |
+| All | x1.66 | **x2.01** | **x2.01** |
 
-The result worth writing up is that **E barely beats D**. Clickstream
-engagement, the thing a VLE log is mostly made of, is worth about as much as
-knowing a student's IMD band and age. What predicts withdrawal is whether
-assessments are being submitted and what they score — which is close to
-tautological but is exactly the kind of claim the grid exists to test. D and E
-together are still well short of A, and All beats A by roughly 0.1 of lift,
-so the sets are not redundant.
+The result worth writing up: **engagement is the weakest feature set at every
+horizon, below demographics throughout.** Clickstream volume — the bulk of what
+a VLE log contains, and 10.6 million rows of this dataset — predicts withdrawal
+less well than knowing a student's IMD band, age and prior attempts. What
+predicts withdrawal is whether assessments are being submitted and what they
+score.
+
+(With CCC wrongly included, D and E looked equal at x1.32 and x1.31. Removing an
+unseen module from the test set separated them: D rose to x1.40, E stayed at
+x1.29. A model relying on demographics generalizes across years within a module
+it has seen; the engagement features were being flattered by a module it had
+not.)
+
+At week 4, D and A are level (x1.41 against x1.44): before any assessment has
+fallen due there is little assessment signal to have. A pulls away at week 8
+once the first deadlines have passed.
 
 ### More weeks stop helping after week 8
 
-AUC-ROC for All: 0.664 at week 4, 0.694 at week 8, 0.688 at week 12. The gain
-is between weeks 4 and 8; week 12 gives none of it back. Combined with the
-earliness reading in open item 2, week 8 is the horizon to defend.
+AUC-ROC for All: 0.646 at week 4, 0.686 at week 8, 0.686 at week 12. The gain is
+entirely between weeks 4 and 8; week 12 adds nothing measurable. Lift is
+likewise flat at x2.01 across weeks 8 and 12. Week 8 is the horizon to defend.
 
 ### Precision 0.50 is barely reachable at these base rates
 
-recall_at_p50 for the best cell falls 0.134, 0.036, 0.007 across the horizons.
-At a 13-20% base rate, a queue at 50% precision is nearly empty by week 12.
-This column will read as near-zeroes in the grid; that is the finding, not a
+recall_at_p50 for the best cell: 0.044, 0.076, 0.007 across the horizons. At a
+13-20% base rate a queue at 50% precision is nearly empty, and by week 12 it is
+empty. This column reads as near-zeroes in the grid; that is the finding, not a
 defect. If the SRS wants an operational threshold, precision 0.30 or a fixed
-queue length would say more.
+queue length would say more about whether an advisor's day can be filled.
 
 ### Calibration separates the classifiers where AUC does not
 
-Mean Brier across the grid: hgb 0.134, rf 0.185, logreg 0.241 — against
-baselines of 0.117 to 0.159. Logistic regression is beaten by predicting the
-base rate for everyone, while ranking as well as anything (mean AUC-PR 0.244
-against hgb's 0.245). `results/fig_calibration_w8.png` shows the whole curve
-sitting below the diagonal.
+Mean Brier across the grid: hgb 0.119, rf 0.174, logreg 0.235, against baselines
+of 0.117 to 0.159. Logistic regression is beaten by predicting the base rate for
+everyone, while ranking about as well as anything.
+`results/fig_calibration_w8.png` shows the whole curve sitting below the
+diagonal: at a predicted 0.92 the observed withdrawal rate is 0.51.
 
-Two classifiers that are indistinguishable on AUC are far apart on whether
-their output can be shown to a person as a probability. That is the argument
-for the Brier column.
+Two classifiers indistinguishable on AUC are far apart on whether their output
+can be shown to a person as a probability. That is the argument for the Brier
+column, and after the correction hgb wins every horizon on all four metrics at
+once.
 
 ### The model is close to uniform across IMD bands
 
-At week 8, all 11 IMD levels clear the n < 20 floor (596 to 1,636 students)
-and AUC-ROC runs 0.66 to 0.75, a best-minus-worst gap of 0.087. The widest
-band is `not recorded` at 0.75 — the students with no IMD band are predicted
-slightly *better* than anyone else. No band is badly served by the model.
-
-## Findings from the first full training run (2026-09-12)
-
-Measured on the real dataset, feature set All, train 2013 / test 2014.
-
-### AUC-PR is not comparable across horizons, and the headline reverses
-
-| Horizon | Base rate (majority AUC-PR) | Best | AUC-PR | Lift over baseline |
-|---|---|---|---|---|
-| week 4 | 0.197 | hgb | 0.346 | x1.75 |
-| week 8 | 0.163 | logreg | 0.307 | x1.88 |
-| week 12 | 0.135 | rf | 0.258 | x1.91 |
-
-Raw AUC-PR **falls** as the horizon gets later, which reads as "predicting
-earlier is easier". It is not. AUC-PR's floor is the positive rate, and the
-positive rate falls at every horizon because the cohort filter removes
-students who have already unregistered: 0.197 at week 4 down to 0.135 at
-week 12. Measured against that moving floor, the models get **better** with
-more data, not worse: lift rises from x1.75 to x1.91.
-
-This bears directly on the question the project asks — how prediction quality
-trades against earliness. Chapter 4 must report AUC-PR against the per-horizon
-baseline, or the grid will support the opposite conclusion to the true one.
-The majority baseline is stored as a ModelVersion at every horizon precisely so
-that comparison is always available.
-
-### Logistic regression's probabilities are ranks, not probabilities
-
-At week 12, Brier by classifier: hgb 0.110, majority 0.117, rf 0.123,
-**logreg 0.236**. Logistic regression is beaten on Brier by predicting the base
-rate for everyone, while still ranking well (AUC-PR 0.246 against the
-baseline's 0.135).
-
-This is `class_weight="balanced"`, which the SRS fixes. Re-weighting the
-classes shifts the intercept so the model behaves as if withdrawal were a
-50/50 event, and the output is systematically too high. The ordering is
-unharmed, which is why AUC-ROC and AUC-PR look fine.
-
-Consequences: the ranking page displays `probability`, and for a logreg model
-that number should be read as a position in the queue, not as a chance of
-withdrawing. Worth either calibrating the selected model before scoring or
-labelling the column as a risk score rather than a probability. Not changed
-here, because the SRS fixes both the class weighting and the field.
-
-### Collinear engagement features can distort a single student's explanation
-
-total_clicks, mean_weekly_clicks and max_weekly_clicks move together, so
-logistic regression splits large opposing coefficients between them. Across
-the cohort the explanations are sensible — mean_score, weighted_score_to_date
-and mean_weekly_clicks are the three most-cited features at week 8 — but for a
-student with extreme click counts the top three can come back as click volume
-with contradictory directions. The magnitudes are real; the per-feature
-attribution between near-duplicate columns is not stable.
+At week 8 every IMD level clears the n < 20 floor and AUC-ROC runs roughly 0.66
+to 0.75, a best-minus-worst gap of about 0.09. The widest band is `not recorded`
+— students with no IMD band are predicted slightly better than anyone else. No
+band is badly served.
 
 ## Gaps between the SRS and the data
 

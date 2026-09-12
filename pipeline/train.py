@@ -298,6 +298,27 @@ def split_by_year(X: pd.DataFrame, y: pd.Series, groups: pd.DataFrame):
     )
 
 
+def drop_untrained_modules(X, y, groups, modules: list[str]):
+    """Input: a test split and the modules that have no training data.
+    Output: the same split with those modules removed, and the number dropped.
+
+    A module present only in the test year is scored by a model that never saw
+    it, so its rows measure generalization to an unseen module rather than to
+    an unseen year. Leaving them in answers a different question than the one
+    the experiment asks. The SRS default is to exclude them and say so.
+    """
+    if not modules:
+        return X, y, groups, 0
+    keep = ~groups["code_module"].isin(modules).to_numpy()
+    dropped = int((~keep).sum())
+    return (
+        X.loc[keep].reset_index(drop=True),
+        y.loc[keep].reset_index(drop=True),
+        groups.loc[keep].reset_index(drop=True),
+        dropped,
+    )
+
+
 def modules_without_training_data(groups: pd.DataFrame) -> list[str]:
     """Output: modules that appear only in the test year.
 

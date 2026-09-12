@@ -132,6 +132,12 @@ Writes `results/grid.csv` (one row per cell), `results/baselines.csv`,
 `results/subgroups_w{4,8,12}.csv`, three figures, and a `README.txt` explaining
 how to read them. Only `grid.csv` is committed.
 
+A module with no presentation in the training year — CCC, whose two
+presentations are both 2014 — is removed from the test split before any metric
+is computed, per the SRS default, and the count is stated in the log and in
+`results/README.txt`. The application still scores those students, since their
+advisors need a ranking; only the metrics exclude them.
+
 **Every row of the grid carries `baseline_auc_pr` and `auc_pr_lift`, and they
 matter.** AUC-PR's floor is the positive rate, and the positive rate falls at
 every horizon because the cohort filter removes students who have already

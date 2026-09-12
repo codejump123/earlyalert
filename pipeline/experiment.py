@@ -41,6 +41,7 @@ from .train import (
     FEATURE_SETS,
     SUBGROUP_DIMS,
     DegenerateSplit,
+    drop_untrained_modules,
     build_cohort,
     fit_and_evaluate,
     modules_without_training_data,
@@ -95,6 +96,7 @@ def run_experiment(
     best_by_horizon: dict[int, dict] = {}
     excluded: list[str] = []
     skipped: list[tuple[int, str]] = []
+    dropped_rows: dict[int, int] = {}
 
     for horizon in horizons:
         X, y, groups = build_cohort(features, students, registrations, horizon)
@@ -102,6 +104,24 @@ def run_experiment(
             if module not in excluded:
                 excluded.append(module)
         X_tr, X_te, y_tr, y_te, _, groups_te = split_by_year(X, y, groups)
+
+        # SRS default: a module with no training year is excluded from
+        # evaluation and the exclusion is stated.
+        untrained = modules_without_training_data(groups)
+        X_te, y_te, groups_te, dropped = drop_untrained_modules(
+            X_te, y_te, groups_te, untrained
+        )
+        if dropped:
+            logger.info(
+                "week %d: %d test rows dropped for %s (no training year)",
+                horizon, dropped, ", ".join(untrained),
+            )
+            dropped_rows[horizon] = dropped
+        if len(X_te) == 0:
+            reason = "every test row belonged to a module with no training year"
+            logger.warning("week %d skipped: %s", horizon, reason)
+            skipped.append((horizon, reason))
+            continue
 
         try:
             baseline = fit_and_evaluate(
@@ -191,7 +211,9 @@ def run_experiment(
         _write_subgroups(results_dir, horizon, best)
 
     _figures(results_dir, grid, baselines, best_by_horizon)
-    _write_readme(results_dir, grid, baselines, best_by_horizon, excluded, skipped)
+    _write_readme(
+        results_dir, grid, baselines, best_by_horizon, excluded, skipped, dropped_rows
+    )
 
     logger.info(
         "experiment complete: %d cells in %.1fs; wrote %s",
@@ -286,7 +308,7 @@ def _figure_aucpr_vs_horizon(plt, results_dir: Path, grid, baselines) -> None:
     left.grid(alpha=0.3)
     left.legend(fontsize=8)
 
-    right.axhline(1.0, linestyle="--", color="0.4")
+    right.axhline(1.0, linestyle="--", color="0.4", label="baseline")
     right.set_xlabel("prediction horizon (week)")
     right.set_ylabel("AUC-PR / baseline AUC-PR")
     right.set_title("Lift over the majority baseline\n(the comparable measure)")
@@ -407,7 +429,8 @@ def _figure_subgroup_auc(plt, results_dir: Path, best: dict) -> None:
 
 
 def _write_readme(
-    results_dir: Path, grid, baselines, best_by_horizon, excluded, skipped
+    results_dir: Path, grid, baselines, best_by_horizon, excluded, skipped,
+    dropped_rows
 ) -> None:
     """A plain-text note beside the outputs, so a reader of results/ alone
     knows what the numbers are and how to compare them."""
@@ -451,10 +474,16 @@ def _write_readme(
     if excluded:
         lines += [
             "",
+            "Excluded from evaluation",
+            "------------------------",
             f"Modules with no 2013 presentation, so no training data: "
             f"{', '.join(excluded)}.",
-            "They appear in the test split only.",
+            "Their rows are removed from the test split before any metric is",
+            "computed, because a model that never saw the module measures",
+            "generalization to an unseen module rather than to an unseen year.",
         ]
+        for horizon in sorted(dropped_rows):
+            lines.append(f"  week {horizon}: {dropped_rows[horizon]} test rows removed")
     (results_dir / "README.txt").write_text("\n".join(lines) + "\n")
 
 

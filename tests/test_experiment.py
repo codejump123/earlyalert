@@ -124,3 +124,40 @@ def test_the_experiment_is_reproducible(tmp_path):
     second, _ = run(tmp_path / "b", horizons=(4,))
     columns = [c for c in GRID_COLUMNS if c != "fit_seconds"]
     pd.testing.assert_frame_equal(first[columns], second[columns])
+
+
+def test_a_module_with_no_training_year_is_excluded_from_evaluation(tmp_path):
+    """The SRS default for CCC, enforced.
+
+    A module that appears only in the test year is scored by a model that never
+    saw it, so its rows measure generalization to an unseen module rather than
+    to an unseen year. It is dropped before any metric is computed, and the
+    exclusion is stated beside the results.
+    """
+    import shutil
+
+    import pandas as pd
+
+    from pipeline.validate import REQUIRED_FILES
+
+    data = tmp_path / "data"
+    data.mkdir()
+    for name in REQUIRED_FILES:
+        shutil.copy(FIXTURES / name, data / name)
+
+    # Relabel the 2014 presentation as a second module, so it has no 2013 half.
+    for name in ("courses.csv", "studentInfo.csv", "studentRegistration.csv",
+                 "assessments.csv", "vle.csv", "studentVle.csv"):
+        frame = pd.read_csv(data / name)
+        if "code_presentation" in frame.columns:
+            frame.loc[frame.code_presentation == "2014J", "code_module"] = "ZZZ"
+            frame.to_csv(data / name, index=False)
+
+    out = tmp_path / "out"
+    grid = run_experiment(data, out, horizons=(4,))
+    note = (out / "README.txt").read_text()
+
+    assert "Excluded from evaluation" in note
+    assert "ZZZ" in note
+    # Every test row belonged to the excluded module, so no horizon survives.
+    assert grid.empty or (grid["test_rows"] == 0).all()

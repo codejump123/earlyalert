@@ -35,6 +35,7 @@ from pipeline.fairness import subgroup_metrics
 from pipeline.train import (
     SUBGROUP_DIMS,
     build_cohort,
+    drop_untrained_modules,
     explanation_basis,
     fit_and_evaluate,
     modules_without_training_data,
@@ -203,9 +204,25 @@ def _train_one_horizon(horizon, features, students, registrations, lookup):
     columns_tr = select_set(X_tr, PRODUCTION_FEATURE_SET)
     columns_te = select_set(X_te, PRODUCTION_FEATURE_SET)
 
+    # A module with no training year is excluded from the metrics, per the SRS
+    # default, but its students are still scored: an advisor assigned to that
+    # presentation needs a ranking, and the model version's metrics say plainly
+    # that the module was not part of what they measure.
+    eval_columns, eval_y, eval_groups, dropped = drop_untrained_modules(
+        columns_te, y_te, groups_te, excluded
+    )
+    if dropped:
+        logger.info(
+            "week %d: %d test rows held out of the metrics for %s "
+            "(no training year); they are still scored",
+            horizon, dropped, ", ".join(excluded),
+        )
+
     evaluations = []
     for classifier in CANDIDATES:
-        evaluation = fit_and_evaluate(columns_tr, y_tr, columns_te, y_te, classifier)
+        evaluation = fit_and_evaluate(
+            columns_tr, y_tr, eval_columns, eval_y, classifier
+        )
         evaluations.append(evaluation)
         logger.info(
             "week %d %s: AUC-ROC %.3f AUC-PR %.3f Brier %.3f recall@p50 %.3f",
@@ -222,11 +239,14 @@ def _train_one_horizon(horizon, features, students, registrations, lookup):
         (e for e in evaluations if e.classifier != "majority"),
         key=lambda e: e.auc_pr,
     )
-    report = subgroup_metrics(y_te, best.y_prob, groups_te, SUBGROUP_DIMS)
+    report = subgroup_metrics(best_y_true(eval_y), best.y_prob, eval_groups, SUBGROUP_DIMS)
+
+    # Score every student of the test year, including the held-out modules.
+    all_probabilities = best.model.predict_proba(columns_te.astype(float))[:, 1]
 
     scored = _store(
-        horizon, evaluations, best, report, columns_tr, columns_te,
-        y_tr, y_te, groups_te, lookup,
+        horizon, evaluations, best, report, columns_tr, columns_te, eval_columns,
+        y_tr, eval_y, eval_groups, groups_te, all_probabilities, lookup,
     )
     return (
         HorizonResult(
@@ -240,10 +260,17 @@ def _train_one_horizon(horizon, features, students, registrations, lookup):
     )
 
 
+def best_y_true(y):
+    """The labels the metrics were computed on, as a plain array."""
+    import numpy as np
+
+    return np.asarray(y)
+
+
 @transaction.atomic
 def _store(
-    horizon, evaluations, best, report, columns_tr, columns_te,
-    y_tr, y_te, groups_te, lookup,
+    horizon, evaluations, best, report, columns_tr, columns_te, eval_columns,
+    y_tr, eval_y, eval_groups, groups_te, all_probabilities, lookup,
 ):
     """Write the ModelVersion rows and the RiskScores for this horizon."""
     ModelVersion.objects.filter(horizon_week=horizon, is_current=True).update(
@@ -277,7 +304,7 @@ def _store(
             current = version
 
     basis = explanation_basis(
-        best.model, columns_tr, y_tr, columns_te, y_te, best.feature_names
+        best.model, columns_tr, y_tr, eval_columns, eval_y, best.feature_names
     )
     names = best.feature_names
     values = columns_te[names].to_numpy(dtype=float)
@@ -296,7 +323,7 @@ def _store(
             RiskScore(
                 student_id=student_pk,
                 model_version=current,
-                probability=float(best.y_prob[position]),
+                probability=float(all_probabilities[position]),
                 top_features=top_features(
                     best.model, values[position], names, basis=basis
                 ),
