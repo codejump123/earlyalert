@@ -30,6 +30,10 @@
   <span class="brand">EarlyAlert</span>
   {% if user.is_authenticated %}
     <a href="{% url 'presentation_selector' %}">Presentations</a>
+    {% if active_presentation %}
+      <a href="{% url 'ranking' active_presentation.pk %}?horizon={{ active_horizon }}">Ranking</a>
+      <a href="{% url 'dashboard' active_presentation.pk %}?horizon={{ active_horizon }}">Dashboard</a>
+    {% endif %}
     {% if user_role == 'administrator' %}
       <a href="{% url 'upload' %}">Upload</a>
       <a href="{% url 'rebuild' %}">Rebuild</a>

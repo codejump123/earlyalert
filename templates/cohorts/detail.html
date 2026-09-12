@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Student {{ student.id_student }} — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Student {{ student.id_student }}</h1>
+  <p class="muted">
+    {{ presentation }} · week {{ horizon }} horizon ·
+    <a href="{% url 'ranking' presentation.pk %}?horizon={{ horizon }}">back to ranking</a>
+  </p>
+
+  <h2>Demographics</h2>
+  <table>
+    <tr><th>IMD band</th><td>{{ student.imd_band|default:"not recorded" }}</td>
+        <th>Age band</th><td>{{ student.age_band }}</td></tr>
+    <tr><th>Highest education</th><td>{{ student.highest_education }}</td>
+        <th>Region</th><td>{{ student.region }}</td></tr>
+    <tr><th>Gender</th><td>{{ student.gender }}</td>
+        <th>Disability</th><td>{{ student.disability|yesno:"Yes,No" }}</td></tr>
+    <tr><th>Previous attempts</th><td>{{ student.num_prev_attempts }}</td>
+        <th>Credits</th><td>{{ student.studied_credits }}</td></tr>
+    <tr><th>Registered</th><td>day {{ student.date_registration }}</td>
+        <th>Unregistered</th>
+        <td>{% if student.date_unregistration is not None %}day {{ student.date_unregistration }}{% else %}—{% endif %}</td></tr>
+  </table>
+
+  {% if not has_engagement %}
+    <h2>Engagement</h2>
+    <p class="notice">No engagement data recorded yet.</p>
+  {% else %}
+    {% if score %}
+      <h2>Current risk</h2>
+      <p>
+        <strong>{{ score.probability|floatformat:3 }}</strong> at week {{ horizon }},
+        from the {{ model.classifier }} model on feature set {{ model.feature_set }}.
+      </p>
+      <ul>
+        {% for item in score.top_features %}
+          <li>{{ item.text }} <span class="muted">({{ item.direction }} risk)</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <h2>Current risk</h2>
+      <p class="notice">
+        No stored risk score at week {{ horizon }}. Models are trained on the
+        2013 presentations and score the 2014 ones.
+      </p>
+    {% endif %}
+
+    <h2>Weekly engagement to week {{ horizon }}</h2>
+    <table>
+      <tr>
+        <th>Week</th><th>Clicks</th><th>Active days</th><th>Clicks / active day</th>
+        <th>Days since activity</th><th>Submitted</th><th>Late</th><th>Mean score</th>
+      </tr>
+      {% for w in weekly %}
+        <tr>
+          <td>{{ w.week }}</td><td>{{ w.total_clicks }}</td><td>{{ w.active_days }}</td>
+          <td>{{ w.clicks_per_active_day|floatformat:1 }}</td>
+          <td>{{ w.days_since_last_activity }}</td>
+          <td>{{ w.assessments_submitted }}</td><td>{{ w.assessments_late }}</td>
+          <td>{% if w.mean_score is not None %}{{ w.mean_score|floatformat:1 }}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+
+  <h2>Flags</h2>
+  {% if flags %}
+    <table>
+      <tr><th>Raised</th><th>By</th><th>Status</th><th>Reason</th><th>Closed</th></tr>
+      {% for flag in flags %}
+        <tr>
+          <td>{{ flag.created_at }}</td><td>{{ flag.raised_by.username }}</td>
+          <td>{{ flag.get_status_display }}</td><td>{{ flag.reason|default:"—" }}</td>
+          <td>{{ flag.closed_at|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">No flags on this student.</p>
+  {% endif %}
+
+  {% if flag_control.visible %}
+    <p style="margin-top:12px">
+      <button type="button" disabled>Raise a flag</button>
+      <span class="muted">
+        {% if flag_control.reason %}{{ flag_control.reason }}{% else %}available{% endif %}
+      </span>
+    </p>
+  {% elif flag_control.reason %}
+    <p class="muted">No flag control: {{ flag_control.reason }}.</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Ranking {{ presentation }} — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>{{ presentation }} — students at risk</h1>
+  <p class="muted">
+    Week {{ horizon }} horizon.
+    {% if model %}
+      Scores from the current {{ model.classifier }} model on feature set
+      {{ model.feature_set }}, trained {{ model.trained_at }}.
+      Stored scores only; nothing is computed when this page loads.
+    {% endif %}
+  </p>
+
+  <form method="get" style="margin-bottom:14px">
+    <label>Horizon
+      <select name="horizon" onchange="this.form.submit()">
+        {% for w in horizon_weeks %}
+          <option value="{{ w }}" {% if w == horizon %}selected{% endif %}>week {{ w }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Apply</button></noscript>
+    <a href="{% url 'dashboard' presentation.pk %}?horizon={{ horizon }}">Dashboard</a>
+    <a href="{% url 'ranking_export' presentation.pk %}?horizon={{ horizon }}">Export CSV</a>
+  </form>
+
+  {% if not model %}
+    <p class="notice">
+      No model is current at week {{ horizon }}. An administrator needs to
+      retrain before a ranking exists.
+    </p>
+  {% elif not total %}
+    <p class="notice">
+      No students in this presentation have a stored risk score at week
+      {{ horizon }}. Models are trained on the 2013 presentations and score the
+      2014 ones.
+    </p>
+  {% else %}
+    <p class="muted">
+      {{ total }} scored student{{ total|pluralize }},
+      page {{ page.number }} of {{ page.paginator.num_pages }}.
+    </p>
+    <table>
+      <tr>
+        <th>#</th><th>Student</th><th>Risk</th><th>Leading reason</th>
+        <th>Status</th><th>Flag</th>
+      </tr>
+      {% for row in rows %}
+        <tr>
+          <td class="muted">{{ forloop.counter0|add:page.start_index }}</td>
+          <td><a href="{% url 'student_detail' row.student.pk %}?horizon={{ horizon }}">{{ row.student.id_student }}</a></td>
+          <td>{{ row.score.probability|floatformat:3 }}</td>
+          <td>{{ row.reason }}</td>
+          <td class="muted">
+            {% if row.student.date_unregistration is not None %}
+              unregistered day {{ row.student.date_unregistration }}
+            {% else %}registered{% endif %}
+          </td>
+          <td>
+            {% if row.has_open_flag %}open
+            {% elif row.resolved %}resolved
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+    {% if page.paginator.num_pages > 1 %}
+      <p>
+        {% if page.has_previous %}
+          <a href="?horizon={{ horizon }}&page={{ page.previous_page_number }}">Previous</a>
+        {% endif %}
+        <span class="muted">page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}
+          <a href="?horizon={{ horizon }}&page={{ page.next_page_number }}">Next</a>
+        {% endif %}
+      </p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

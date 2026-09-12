@@ -1,4 +1,4 @@
-"""Presentation selector (UC02) and OULAD upload (UC09).
+"""Presentation selector (UC02), student detail (UC04) and upload (UC09).
 
 Lists only the presentations the authorization service returns for this user
 and records the chosen one in the session for the fixed header.
@@ -6,12 +6,17 @@ and records the chosen one in the session for the fixed header.
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from accounts.authz import assert_can_view, assert_is_admin, presentations_for
 from pipeline.validate import REQUIRED_FILES
 
+from scoring.models import RiskScore
+from scoring.ranking import current_model, resolve_horizon
+
+from .detail import flag_control_for
+from .models import Student
 from .uploads import UploadResult, accept_upload, current_batch
 
 
@@ -62,5 +67,48 @@ def upload_view(request):
             "required_files": REQUIRED_FILES,
             "current": current_batch(),
             "max_mb": settings.MAX_UPLOAD_BYTES // (1024 * 1024),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def student_detail(request, student_id):
+    """One student's demographics, engagement and current risk (UC04).
+
+    A student with no weekly rows gets demographics and a message. No
+    probability is shown for them, because none was computed.
+    """
+    student = get_object_or_404(
+        Student.objects.select_related("presentation"), pk=student_id
+    )
+    assert_can_view(request.user, student.presentation)
+
+    horizon = resolve_horizon(
+        request.GET.get("horizon", request.session.get("active_horizon"))
+    )
+    weekly = list(
+        student.weekly_features.filter(week__lte=horizon).order_by("week")
+    )
+    has_engagement = bool(weekly)
+
+    model = current_model(horizon)
+    score = None
+    if has_engagement and model is not None:
+        score = RiskScore.objects.filter(student=student, model_version=model).first()
+
+    return render(
+        request,
+        "cohorts/detail.html",
+        {
+            "student": student,
+            "presentation": student.presentation,
+            "horizon": horizon,
+            "weekly": weekly,
+            "has_engagement": has_engagement,
+            "model": model,
+            "score": score,
+            "flags": student.flags.select_related("raised_by").order_by("-created_at"),
+            "flag_control": flag_control_for(request.user, student),
         },
     )

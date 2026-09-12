@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Dashboard {{ presentation }} — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>{{ presentation }} — risk by {{ dimension|cut:"_"|title }}</h1>
+  <p class="muted">
+    Week {{ horizon }} horizon, {{ scored_total }} scored student{{ scored_total|pluralize }}.
+    Any group of fewer than {{ min_n }} students is named but not described.
+  </p>
+
+  <form method="get" style="margin-bottom:14px">
+    <input type="hidden" name="horizon" value="{{ horizon }}">
+    <label>Break down by
+      <select name="dim" onchange="this.form.submit()">
+        {% for d in dimensions %}
+          <option value="{{ d }}" {% if d == dimension %}selected{% endif %}>{{ d|cut:"_" }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Apply</button></noscript>
+    <a href="{% url 'ranking' presentation.pk %}?horizon={{ horizon }}">Ranking</a>
+  </form>
+
+  {% if too_few %}
+    <p class="notice">
+      This presentation has {{ scored_total }} scored student{{ scored_total|pluralize }},
+      fewer than the {{ min_scored }} needed for any aggregate. No breakdown is
+      shown.
+    </p>
+  {% elif all_suppressed %}
+    <p class="notice">
+      Every group in this breakdown has fewer than {{ min_n }} students, so the
+      table is suppressed in full.
+    </p>
+  {% else %}
+    <h2>Risk in this presentation</h2>
+    <table>
+      <tr><th>{{ dimension|cut:"_" }}</th><th>Students</th><th>Mean risk</th><th>At or above 0.50</th></tr>
+      {% for entry in summary %}
+        <tr>
+          <td>{{ entry.level }}</td>
+          {% if entry.suppressed %}
+            <td colspan="3" class="muted">suppressed (n &lt; {{ min_n }})</td>
+          {% else %}
+            <td>{{ entry.n }}</td>
+            <td>{{ entry.mean_probability|floatformat:3 }}</td>
+            <td>{{ entry.high_risk }} ({{ entry.high_risk_share|floatformat:2 }})</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+
+  {% if model_levels %}
+    <h2>How well the model works for each group</h2>
+    <p class="muted">
+      From the current {{ model.classifier }} model, measured across the whole
+      test year rather than this presentation: a per-presentation AUC would
+      itself be a small-sample number.
+    </p>
+    <table>
+      <tr><th>{{ dimension|cut:"_" }}</th><th>Students</th><th>Withdrawal rate</th><th>AUC-ROC</th><th>Recall @ P50</th></tr>
+      {% for entry in model_levels %}
+        <tr>
+          <td>{{ entry.level }}</td>
+          {% if entry.suppressed %}
+            <td colspan="4" class="muted">suppressed (n &lt; {{ min_n }})</td>
+          {% else %}
+            <td>{{ entry.n }}</td>
+            <td>{{ entry.positive_rate|floatformat:3 }}</td>
+            <td>{% if entry.auc_roc is not None %}{{ entry.auc_roc|floatformat:3 }}{% else %}<span class="muted">not defined</span>{% endif %}</td>
+            <td>{% if entry.recall_at_p50 is not None %}{{ entry.recall_at_p50|floatformat:3 }}{% else %}<span class="muted">not defined</span>{% endif %}</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+{% endblock %}
