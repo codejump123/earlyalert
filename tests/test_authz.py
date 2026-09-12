@@ -67,3 +67,27 @@ def test_audit_log_is_append_only(advisor_a):
         entry.delete()
     with pytest.raises(AppendOnly):
         AuditEntry.objects.all().delete()
+
+
+def test_the_403_page_states_which_refusal_it_is(client, advisor_a, presentation_b, password):
+    """UC03's exception flow requires the message, not just the status.
+
+    Django's default 403 body is the single word "Forbidden", so asserting the
+    PermissionDenied message alone passes while the user sees nothing.
+    """
+    client.login(username=advisor_a.username, password=password)
+    response = client.get(f"/presentations/{presentation_b.pk}/ranking/")
+    assert response.status_code == 403
+
+    body = response.content.decode()
+    assert "You do not have access to this presentation." in body
+    # And still discloses nothing about the presentation it refused.
+    assert presentation_b.code_module not in body
+    assert "probability" not in body.lower()
+
+
+def test_the_admin_refusal_also_states_itself(client, advisor_a, password):
+    client.login(username=advisor_a.username, password=password)
+    response = client.get("/admin/upload/")
+    assert response.status_code == 403
+    assert "Administrator role required." in response.content.decode()

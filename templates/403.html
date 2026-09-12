@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% comment %}
+Django's default 403 body is the single word "Forbidden". UC03's exception flow
+requires the refusal to say which refusal it is, so the message carried by the
+PermissionDenied raised in accounts.authz is rendered here. It names no
+student, no count, and nothing else about the presentation that was refused.
+{% endcomment %}
+{% block title %}Not permitted — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Not permitted</h1>
+  <p class="error">{{ exception|default:"You do not have access to this page." }}</p>
+  <p class="muted">
+    This attempt has been recorded. If you believe you should have access, an
+    administrator assigns presentations.
+  </p>
+  <p><a href="{% url 'presentation_selector' %}">Back to your presentations</a></p>
+{% endblock %}
