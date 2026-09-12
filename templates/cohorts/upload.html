@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Upload OULAD data — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Upload OULAD data</h1>
+  <p class="muted">
+    All seven files are uploaded together. Nothing is stored unless every file
+    passes validation. Limit {{ max_mb }} MB per file.
+  </p>
+
+  {% if result %}
+    {% if result.ok %}
+      <p class="notice">
+        Upload accepted as batch {{ result.batch_id }}.
+        Ingested {{ result.counts.presentations }} presentation(s) and
+        {{ result.counts.students }} student registration(s)
+        ({{ result.counts.students_created }} new).
+        {% if result.superseded %}Previous batch marked superseded.{% endif %}
+      </p>
+    {% else %}
+      <p class="error">Upload rejected — {{ result.error }}. Nothing was stored.</p>
+    {% endif %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="stack">
+    {% csrf_token %}
+    <label>Select all seven files<br>
+      <input type="file" name="files" multiple required accept=".csv">
+    </label>
+    <button type="submit">Upload and validate</button>
+  </form>
+
+  <h2>Required files</h2>
+  <ul class="muted">{% for name in required_files %}<li>{{ name }}</li>{% endfor %}</ul>
+
+  <h2>Current data</h2>
+  {% if current %}
+    <p class="muted">
+      Batch {{ current.batch_id }}, uploaded {{ current.uploaded_at }},
+      {{ current.rows }} data rows.
+    </p>
+    <table>
+      <tr><th>File</th><th>Rows</th><th>SHA-256</th></tr>
+      {% for f in current.files %}
+        <tr><td>{{ f.filename }}</td><td>{{ f.row_count }}</td><td class="muted">{{ f.checksum }}</td></tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="notice">No complete upload is in place yet.</p>
+  {% endif %}
+{% endblock %}

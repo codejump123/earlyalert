@@ -1,4 +1,4 @@
-"""Presentation selector (UC02).
+"""Presentation selector (UC02) and OULAD upload (UC09).
 
 Lists only the presentations the authorization service returns for this user
 and records the chosen one in the session for the fixed header.
@@ -9,7 +9,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from accounts.authz import assert_can_view, presentations_for
+from accounts.authz import assert_can_view, assert_is_admin, presentations_for
+from pipeline.validate import REQUIRED_FILES
+
+from .uploads import UploadResult, accept_upload, current_batch
 
 
 @login_required
@@ -36,4 +39,28 @@ def presentation_selector(request):
         request,
         "cohorts/selector.html",
         {"presentations": presentations},
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def upload_view(request):
+    """Upload the seven OULAD files together (UC09). Administrators only."""
+    assert_is_admin(request.user)
+    result = None
+    if request.method == "POST":
+        files = request.FILES.getlist("files")
+        if not files:
+            result = UploadResult(ok=False, error="no files were selected")
+        else:
+            result = accept_upload(files, request.user)
+    return render(
+        request,
+        "cohorts/upload.html",
+        {
+            "result": result,
+            "required_files": REQUIRED_FILES,
+            "current": current_batch(),
+            "max_mb": settings.MAX_UPLOAD_BYTES // (1024 * 1024),
+        },
     )

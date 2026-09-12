@@ -81,7 +81,7 @@ Missing values are the literal string `?`. The largest file,
 | Phase | Scope | Tests | Status |
 |---|---|---|---|
 | 1 | Scaffold: models, roles, auth, selector, authorization service | TC1, TC2, TC3, TC5, `test_authz.py` | done |
-| 2 | Ingest: upload view, validation, loader | TC11, TC12, `test_validate.py` | not started |
+| 2 | Ingest: upload view, validation, loader | TC11, TC12, `test_validate.py` | done |
 | 3 | Features: chunked weekly aggregation, rebuild view | TC13, TC14, `test_features.py` | not started |
 | 4 | Training: cohort, split, fit, fairness, retrain view | TC15, TC16, `test_fairness.py` | not started |
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | not started |
