@@ -155,7 +155,7 @@ On the reference machine (Apple silicon, 8 GB), against the full dataset:
 | Ingest 32,593 students | — | 0.8 s |
 | Build weekly features from 10,655,280 rows | under 10 min | **21.6 s**, peak RSS 1.55 GB |
 | Write 1,136,133 WeeklyFeatures rows | — | 21.4 s |
-| Retrain: 3 horizons x 4 classifiers, 45,411 scores | — | 25.8 s, peak RSS 1.06 GB |
+| Retrain: 3 horizons x 4 classifiers, 45,411 scores | — | 13 s, peak RSS 1.06 GB |
 | Experiment: the full 36-cell grid and figures | — | 31.9 s |
 
 The feature build reads studentVle.csv in 22 chunks of 500,000 rows and holds
