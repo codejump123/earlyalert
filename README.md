@@ -85,6 +85,16 @@ in `DECISIONS.md`: the note form on `/flags/<id>/intervention/`, because
 the audit log, because Phase 7 requires a CSV export the table does not list.
 Neither adds a URL.
 
+## Documents
+
+`docs/DESIGN.md` is the design document, revised against the built system, and
+`docs/SYNOPSIS.md` the project synopsis; both are also rendered to .docx beside
+them. `DECISIONS.md` records evidence on the SRS open items and the gaps
+between the SRS and the data that the build had to settle.
+
+Test cases are numbered as the design document's Table 12 defines them, TC1
+through TC20, and that table names the module implementing each.
+
 ## Tests
 
 ```sh

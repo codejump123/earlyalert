@@ -58,7 +58,7 @@ def test_tc1_selector_requires_authentication(client, db):
     assert response["Location"].startswith("/login/")
 
 
-# --- TC2: identical rejection for wrong password and unknown username ----
+# --- TC2: rejection and lockout -----------------------------------------
 
 def test_tc2_wrong_password_and_unknown_username_match(client, advisor_a):
     wrong = client.post(
@@ -78,9 +78,9 @@ def test_tc2_failed_login_does_not_authenticate(client, advisor_a):
     assert client.get("/presentations/").status_code == 302
 
 
-# --- TC3: lockout ---------------------------------------------------------
+# --- TC2 continued: five consecutive failures lock the account -----------
 
-def test_tc3_five_failures_lock_the_account(client, advisor_a, password):
+def test_tc2_five_failures_lock_the_account(client, advisor_a, password):
     for _ in range(5):
         client.post("/login/", {"username": advisor_a.username, "password": "wrong"})
     advisor_a.profile.refresh_from_db()
@@ -96,7 +96,7 @@ def test_tc3_five_failures_lock_the_account(client, advisor_a, password):
     assert client.get("/presentations/").status_code == 302
 
 
-def test_tc3_four_failures_do_not_lock(client, advisor_a, password):
+def test_tc2_four_failures_do_not_lock(client, advisor_a, password):
     for _ in range(4):
         client.post("/login/", {"username": advisor_a.username, "password": "wrong"})
     advisor_a.profile.refresh_from_db()
@@ -110,7 +110,7 @@ def test_tc3_four_failures_do_not_lock(client, advisor_a, password):
     assert advisor_a.profile.failed_attempts == 0
 
 
-def test_tc3_admin_clears_the_lock(client, advisor_a, password):
+def test_tc2_admin_clears_the_lock(client, advisor_a, password):
     for _ in range(5):
         client.post("/login/", {"username": advisor_a.username, "password": "wrong"})
     advisor_a.profile.refresh_from_db()
@@ -121,9 +121,9 @@ def test_tc3_admin_clears_the_lock(client, advisor_a, password):
     assert response.redirect_chain[-1][0] == "/presentations/"
 
 
-# --- TC5: presentation selector ------------------------------------------
+# --- TC3: presentation selector ------------------------------------------
 
-def test_tc5_selector_lists_only_assigned(client, advisor_a, presentation_a, presentation_b, password):
+def test_tc3_selector_lists_only_assigned(client, advisor_a, presentation_a, presentation_b, password):
     client.login(username=advisor_a.username, password=password)
     response = client.get("/presentations/")
     assert response.status_code == 200
@@ -134,13 +134,13 @@ def test_tc5_selector_lists_only_assigned(client, advisor_a, presentation_a, pre
     assert "BBB" not in body
 
 
-def test_tc5_admin_sees_every_presentation(client, administrator, presentation_a, presentation_b, password):
+def test_tc3_admin_sees_every_presentation(client, administrator, presentation_a, presentation_b, password):
     client.login(username=administrator.username, password=password)
     response = client.get("/presentations/")
     assert set(response.context["presentations"]) == {presentation_a, presentation_b}
 
 
-def test_tc5_selection_shows_in_the_fixed_header(client, advisor_a, presentation_a, password):
+def test_tc3_selection_shows_in_the_fixed_header(client, advisor_a, presentation_a, password):
     client.login(username=advisor_a.username, password=password)
     client.post("/presentations/", {"presentation": presentation_a.pk, "horizon": 12})
     response = client.get("/presentations/")
@@ -151,11 +151,13 @@ def test_tc5_selection_shows_in_the_fixed_header(client, advisor_a, presentation
     assert "week 12" in body
 
 
-def test_tc5_default_horizon_is_week_8(client, advisor_a, presentation_a, password):
+def test_tc3_default_horizon_is_week_8(client, advisor_a, presentation_a, password):
     client.login(username=advisor_a.username, password=password)
     response = client.get("/presentations/")
     assert response.context["active_horizon"] == 8
 
+
+# --- TC5: permission denied ----------------------------------------------
 
 def test_tc5_unassigned_presentation_is_not_selectable(client, advisor_a, presentation_b, password):
     client.login(username=advisor_a.username, password=password)

@@ -1,7 +1,10 @@
-"""The authorization service is the only gate on student data.
+"""The authorization service is the only gate on student data. TC5.
 
 Proves that a user assigned to presentation A is refused presentation B by
-direct URL, and that every denial is recorded.
+direct URL, and that every denial is recorded. This is the design document's
+TC5, Permission denied on ranking, at the service level; the route-level half
+is in test_phase5_usecases.py, which drives the ranking, the dashboard, the
+export and a student detail page in an unassigned presentation.
 """
 
 import pytest
