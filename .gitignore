@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+media/
+uploads/
+results/*
+!results/.gitkeep
+!results/grid.csv
+artifacts/
+.pytest_cache/
+.DS_Store

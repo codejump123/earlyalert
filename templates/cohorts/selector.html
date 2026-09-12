@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Presentations — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Presentations</h1>
+  <p class="muted">You see only the presentations you are assigned to.</p>
+  {% if presentations %}
+    <form method="post">
+      {% csrf_token %}
+      <table>
+        <tr><th></th><th>Module</th><th>Presentation</th><th>Start</th><th>Length (days)</th></tr>
+        {% for p in presentations %}
+          <tr>
+            <td><input type="radio" name="presentation" value="{{ p.pk }}" {% if active_presentation and active_presentation.pk == p.pk %}checked{% endif %} required></td>
+            <td>{{ p.code_module }}</td>
+            <td>{{ p.code_presentation }}</td>
+            <td>{{ p.start_date }}</td>
+            <td>{{ p.length_days }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+      <p>
+        <label>Horizon
+          <select name="horizon">
+            {% for w in horizon_weeks %}<option value="{{ w }}" {% if w == active_horizon %}selected{% endif %}>week {{ w }}</option>{% endfor %}
+          </select>
+        </label>
+        <button type="submit">Select</button>
+      </p>
+    </form>
+  {% else %}
+    <p class="notice">No presentations are assigned to you. An administrator assigns presentations in the Django admin.</p>
+  {% endif %}
+{% endblock %}
