@@ -158,9 +158,10 @@ and notes are refused once the flag is closed.
 
 If the SRS intends a dedicated endpoint, this is the one place to change.
 
-### The SRS gives two incompatible week numberings
+### The week numbering, and where the conflicting formula actually came from
 
-**2026-09-12.** Three statements in the brief cannot all hold:
+**2026-09-12, corrected the same day after reading the SRS.** Three statements
+in the project brief (CLAUDE.md) cannot all hold:
 
 1. Data: "Week w covers days 7(w-1) to 7w-1." — week 1 is days 0-6.
 2. features.py: "compute week = `date // 7`" — week 1 would be days 7-13.
@@ -170,15 +171,26 @@ If the SRS intends a dedicated endpoint, this is the one place to change.
 day -1 to week -1 rather than week 0. `date // 7 + 1` satisfies both, and also
 matches vle.csv, whose `week_from`/`week_to` are 1-based.
 
+**The conflicting formula is not in the SRS.** The SRS specifies no week
+formula at all: UC10 says only that the builder "aggregates each chunk to
+per-student, per-week totals", and Section 3.2.5 fixes day 0 as the start with
+negative values before it. `week = date // 7` appears only in the project
+brief. So there is no contradiction with the authoritative document to resolve,
+and the implemented numbering stands unopposed rather than pending a ruling.
+This was first recorded here as an SRS contradiction; that attribution was
+wrong.
+
 Implemented as `date // 7 + 1`, in `pipeline.features.week_of`, with the
 convention isolated in the constant `WEEK_OFFSET` so a change is one line.
 Week 1 is therefore days 0-6, week 8 ends on day 55, and pre-start activity
 falls in week 0 and below.
 
-This matters beyond naming: it moves every horizon by seven days. Under the
+It still matters which is used: it moves every horizon by seven days. Under the
 implemented numbering the week 8 horizon sees days 0-55; under `date // 7` it
-would see days 0-62. Worth confirming against the SRS before Chapter 4 quotes
-any horizon.
+would see days 0-62. But with the SRS silent and the brief self-contradictory,
+`date // 7 + 1` is the only reading that satisfies every statement made about
+weeks anywhere, and the numbers reported from it do not depend on a pending
+decision.
 
 ### An assessment with no due date is never "due by week w"
 

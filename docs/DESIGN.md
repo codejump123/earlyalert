@@ -245,7 +245,7 @@ The rebuild decides whether NFR-7 is survivable. `studentVle.csv` holds 10,655,2
 
 Per-week aggregation needs every row for a student to land in the same bucket, and chunk boundaries cut across students. Two ways out: sort the file first, or accumulate partial sums per chunk and merge at the end. The second is chosen; sorting a 433 MB file costs more than the aggregation.
 
-**Week numbering.** Week w covers days 7(w-1) to 7w-1, so week 1 is days 0-6 and pre-start activity falls in week 0 or below. The mapping is therefore `week = date // 7 + 1`. The SRS gives `week = date // 7`, which contradicts both its own statement of the week boundaries and its own statement that negative dates map to week 0 or below. The convention is isolated in a single constant, `WEEK_OFFSET`. This shifts every horizon by seven days and is the one open item in Section 6 that changes every reported number.
+**Week numbering.** Week w covers days 7(w-1) to 7w-1, so week 1 is days 0-6 and pre-start activity falls in week 0 or below. The mapping is therefore `week = date // 7 + 1`. The SRS specifies no formula — UC10 requires only per-student, per-week totals, and Section 3.2.5 fixes day 0 as the start with negative values before it — so this is the reading that satisfies every statement made about weeks, including vle.csv's 1-based `week_from` and `week_to`. The convention is isolated in a single constant, `WEEK_OFFSET`.
 
 **Algorithm.**
 
@@ -591,7 +591,6 @@ NFR-1 is held by the design rather than by tuning: the ranking reads pre-compute
 
 Design questions not settled. Each changes either a stored value or a reported result, and none should be closed by whichever choice the code happens to make first. Evidence gathered during the build is recorded in `DECISIONS.md`.
 
-- **Week numbering.** The SRS gives `week = date // 7`, which contradicts its own two other statements about week boundaries. The build uses `date // 7 + 1`, which satisfies both. This shifts every horizon by seven days and therefore changes every number in the results. It must be confirmed against the SRS before anything is quoted. This is the only open issue that changes all of them.
 - **Module CCC.** Now dropped from evaluation and the exclusion reported, which is the SRS default. Reporting it separately as a transfer case remains the alternative. Evidence: CCC is 21.5 percent of the week 8 test set, and including it changed which classifier won at every horizon and reversed the ordering of the demographic and engagement feature sets.
 - **The n < 20 suppression floor.** Evidence says the two places it applies are not alike. It never binds on the whole test year, where the smallest IMD group holds 596 students, and binds constantly on the per-presentation dashboard, where 6 of the 2014 presentations suppress at least one group. Whether the dashboard wants a floor that scales with the presentation is open.
 - **Feature attribution method.** Coefficients and permutation importance are not comparable, so a version trained with one cannot be compared against a version trained with the other, and the method is not currently stored on the ModelVersion row. Fixing one method for all versions would be simpler and is probably right; recording the method is the alternative and is two fields.
