@@ -80,12 +80,12 @@ def test_tc17_an_anonymous_entry_shows_without_a_user(admin_client, log):
     assert "—" in response.content.decode()
 
 
-def test_tc17_pagination_is_fifty_rows(admin_client, administrator):
+def test_tc17_pagination_is_one_hundred_rows(admin_client, administrator):
     for index in range(PAGE_SIZE + 10):
         record(administrator, "export", f"ranking:{index}")
     response = admin_client.get("/admin/audit/", {"action": "export"})
-    assert PAGE_SIZE == 50
-    assert len(response.context["page"].object_list) == 50
+    assert PAGE_SIZE == 100
+    assert len(response.context["page"].object_list) == 100
     assert response.context["total"] == PAGE_SIZE + 10
     assert response.context["page"].paginator.num_pages == 2
 
@@ -175,16 +175,43 @@ def test_tc17_a_bad_action_or_role_is_dropped_not_applied(admin_client, log):
     assert response.context["total"] == AuditEntry.objects.count()
 
 
-def test_tc17_an_unreadable_date_is_ignored(admin_client, log):
+def test_tc17_an_unreadable_date_falls_back_to_the_default_window(admin_client, log):
+    """A date that cannot be parsed is dropped, leaving the UC12 default."""
     response = admin_client.get("/admin/audit/", {"date_from": "the-first"})
-    assert response.context["filters"].date_from is None
+    filters = response.context["filters"]
+    assert filters.windowed is True
+    assert filters.date_from == dt.date.today() - dt.timedelta(days=30)
     assert response.context["total"] == AuditEntry.objects.count()
+
+
+def test_tc17_the_log_defaults_to_the_last_thirty_days(admin_client, log):
+    """UC12: thirty days spans the interval between two horizons."""
+    response = admin_client.get("/admin/audit/")
+    filters = response.context["filters"]
+    assert filters.windowed is True
+    assert filters.date_from == dt.date.today() - dt.timedelta(days=30)
+    # A default window is not a filter the reader set.
+    assert filters.active is False
+    assert filters.describe() == "all"
+
+
+def test_tc17_an_entry_older_than_the_window_is_hidden_until_asked_for(
+    admin_client, administrator
+):
+    long_ago = timezone.now() - dt.timedelta(days=90)
+    with mock.patch("django.utils.timezone.now", return_value=long_ago):
+        record(administrator, "upload_accepted", "batch:ancient")
+
+    assert admin_client.get("/admin/audit/", {"target": "ancient"}).context["total"] == 0
+    lifted = admin_client.get("/admin/audit/", {"target": "ancient", "all": "1"})
+    assert lifted.context["total"] == 1
+    assert lifted.context["filters"].windowed is False
 
 
 def test_tc17_no_match_says_so(admin_client, log):
     response = admin_client.get("/admin/audit/", {"target": "nothing-like-this"})
     assert response.context["total"] == 0
-    assert "No entries match these filters." in response.content.decode()
+    assert "No entries match this filter." in response.content.decode()
 
 
 def test_tc17_every_action_is_offered_as_a_filter(admin_client, log):

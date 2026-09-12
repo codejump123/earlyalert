@@ -13,6 +13,7 @@ from accounts.authz import assert_can_view, assert_is_admin, presentations_for
 from pipeline.validate import REQUIRED_FILES
 
 from scoring.models import RiskScore
+from scoring.bands import band_for_rank, rank_of
 from scoring.ranking import current_model, resolve_horizon
 
 from .detail import flag_control_for
@@ -94,8 +95,14 @@ def student_detail(request, student_id):
 
     model = current_model(horizon)
     score = None
+    band = None
     if has_engagement and model is not None:
         score = RiskScore.objects.filter(student=student, model_version=model).first()
+        if score is not None:
+            cohort = RiskScore.objects.filter(
+                student__presentation=student.presentation, model_version=model
+            )
+            band = band_for_rank(rank_of(score, cohort), cohort.count())
 
     return render(
         request,
@@ -108,6 +115,7 @@ def student_detail(request, student_id):
             "has_engagement": has_engagement,
             "model": model,
             "score": score,
+            "band": band,
             "flags": student.flags.select_related("raised_by").order_by("-created_at"),
             "flag_control": flag_control_for(request.user, student),
         },

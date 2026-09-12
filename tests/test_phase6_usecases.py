@@ -173,7 +173,7 @@ def test_tc7_the_service_refuses_the_same_cases_the_view_hides(
     advisor_a, unregistered_student
 ):
     """A hidden control is not an enforced rule; the service checks too."""
-    with pytest.raises(WorkflowError, match="unregistered on day 42"):
+    with pytest.raises(WorkflowError, match="Student withdrew on day 42"):
         create_flag(advisor_a, unregistered_student)
 
 

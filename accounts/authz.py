@@ -53,7 +53,7 @@ def assert_can_view(user, presentation) -> None:
         return
     record(user if getattr(user, "is_authenticated", False) else None,
            "denied", f"presentation:{presentation_id}")
-    raise PermissionDenied("You are not assigned to this presentation.")
+    raise PermissionDenied("You do not have access to this presentation.")
 
 
 def assert_is_admin(user) -> None:

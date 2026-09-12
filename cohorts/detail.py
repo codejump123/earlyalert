@@ -20,11 +20,17 @@ from interventions.models import STATUS_OPEN, STATUS_RESOLVED, Flag
 
 @dataclass
 class FlagControl:
-    """Whether the flag control shows, and if not, why not."""
+    """Whether the flag control shows, and if not, why not.
+
+    open_flag is set when a flag is already open on this student: UC05 offers a
+    note on that flag in place of a second flag, so the detail view needs the
+    flag itself, not just the fact of it.
+    """
 
     visible: bool
     disabled: bool = False
     reason: str = ""
+    open_flag: object = None
 
 
 def flag_control_for(user, student) -> FlagControl:
@@ -40,9 +46,12 @@ def flag_control_for(user, student) -> FlagControl:
         return FlagControl(visible=False, reason="only an advisor can raise a flag")
 
     flags = Flag.objects.filter(student=student)
-    if flags.filter(status=STATUS_OPEN).exists():
+    open_flag = flags.filter(status=STATUS_OPEN).first()
+    if open_flag is not None:
         return FlagControl(
-            visible=False, reason="a flag is already open for this student"
+            visible=False,
+            reason="a flag is already open for this student",
+            open_flag=open_flag,
         )
     if flags.filter(status=STATUS_RESOLVED).exists():
         return FlagControl(
@@ -55,7 +64,8 @@ def flag_control_for(user, student) -> FlagControl:
             visible=True,
             disabled=True,
             reason=(
-                f"this student unregistered on day {student.date_unregistration}"
+                f"Student withdrew on day {student.date_unregistration}; "
+                "outreach not available."
             ),
         )
     return FlagControl(visible=True)

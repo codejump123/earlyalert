@@ -235,6 +235,8 @@ Table 8. Routes, views, roles, and requirements served.
 | `/admin/rebuild/` | `rebuild_view` | administrator | Rebuild features | FR-14, NFR-2, NFR-7 |
 | `/admin/retrain/` | `retrain_view` | administrator | Retrain model | FR-15, FR-16, FR-10 |
 | `/admin/audit/`, `?export=csv` | `audit_view` | administrator | Audit log and log export | FR-17, NFR-5 |
+
+The audit log defaults to the last 30 days and paginates at 100 rows, as UC12 specifies. `?all=1` lifts the window, so the whole log is reachable without typing a date from before the deployment existed; the default window is not treated as a filter the reader set, so an empty result is reported as an empty log rather than as an unmatched filter.
 | `/django-admin/` | Django admin | administrator | User accounts, roles, assignments | FR-2, FR-3 |
 
 The student detail route is flat rather than nested under a presentation. The presentation is reached through the student, and a nested route would carry a presentation identifier that the view must either ignore or check for agreement with the student's own — a second identifier that can disagree with the first.
@@ -273,8 +275,14 @@ Triggered on demand by an administrator, under the same lock, one current model 
 - **Refuse to proceed** if the cohort holds fewer than 500 rows or fewer than 50 withdrawals, or if the training split holds fewer than 500 rows. Both floors are set so a 20-student subgroup can exist inside the test split; neither comes from a power calculation. A refusal writes `retrain_failed` with the reason, and the whole run is one transaction, so a refusal at week 8 undoes week 4.
 - **Fit and evaluate** four classifiers — a majority baseline, logistic regression with balanced class weights and a scaler, a 300-tree random forest, and histogram gradient boosting — reporting AUC-ROC, AUC-PR, Brier score, recall at precision 0.50, and calibration bins. `random_state=42` throughout. A split left with one class raises `DegenerateSplit` and is skipped with a reason rather than crashing.
 - **Select the best** non-baseline model by AUC-PR, mark it current for that horizon, store every candidate so the baseline stays on the record beside the models that beat it, and joblib the selected estimator.
-- **Compute subgroup metrics** on the selected model across IMD band, disability, age band, highest education and gender. A level under 20 is recorded by name with `suppressed` and its count, never dropped.
+- **Compute subgroup metrics** on the selected model across IMD band, disability, age band, highest education and gender. Each reported level carries AUC-ROC, AUC-PR and Brier score, as UC11 step 6 requires, and the false-negative rate at the capacity threshold, which is what Section 1 of the SRS asks for. A level under 20 is recorded by name with `suppressed` and its count, never dropped.
 - **Score every student of the test year** and write RiskScore rows carrying the probability and the top three contributing features, translated into the behavior phrasing the detail view shows.
+
+**The fairness metric.** The SRS names two and they are not the same: Section 1 promises a per-subgroup false negative rate, UC11 step 6 specifies AUC-ROC, AUC-PR and Brier score per subgroup. Both are reported, because they answer different questions and the marginal cost of the second is a few lines.
+
+A false negative is a student who withdrew and was never put in front of an advisor, which is precisely the harm Section 1 of the SRS is written about, so it is the headline. It needs an operating threshold and the SRS gives none. Recall at precision 0.50 is unusable as one — precision 0.50 is barely reachable at these base rates, and the recall behind it collapses to 0.007 by week 12 — so the threshold is set by **capacity** instead: flag the top 10 percent of the test cohort by predicted risk, one threshold shared by every subgroup, and count the withdrawers who fall below it.
+
+One threshold for everybody is the part that matters. A threshold computed per subgroup would give each group its own bar, and the rates would no longer be comparable, which is the only reason to compute them.
 
 Feature attribution uses the fitted coefficients for logistic regression and permutation importance computed once on the test set for the tree models. The two are not comparable. Permutation importance is unsigned, so the direction shown to an advisor is taken from the sign of the feature's correlation with the label in training against the student's own position relative to the training median — an approximation, stated as one.
 
@@ -286,15 +294,15 @@ Table 9. Flag states and re-flag behavior.
 
 | State | Entered when | Re-flag permitted? |
 |---|---|---|
-| `open` | Advisor creates the flag (FR-6). | No. The flag's own page carries the note form, and the detail view links to it. |
+| `open` | Advisor creates the flag (FR-6). | No. The detail view offers "Add note to existing flag" in its place, as UC05 3b requires, and links to the flag's own page for interventions and closure. |
 | `closed_resolved` | Outcome is student re-engaged. | No, for the rest of the presentation. The reason is shown in place of the control. |
 | `closed_no_response` | Outcome is no response. | Yes, with no duplicate warning. |
 | `closed_referred` | Outcome is referred elsewhere. | Yes. |
 | `closed_withdrew` | Outcome is student responded and withdrew. | Not in practice: such a student carries a `date_unregistration`, which disables the control and shows the withdrawal day. |
 
-Revision 1 placed an "Add note to existing flag" control on the student detail page. The build puts the note form on the flag's own page instead, which is where the interventions and outcomes already are, and links to it from the detail page — one place where a case is worked rather than two.
+The note form is on the student detail view, where UC05 3b puts it, and posts to the flag it belongs to. The flag's own page carries it too, alongside the interventions and outcomes, so a case can be worked from either end.
 
-Revision 1 also had `closed_referred` show "a referral is outstanding" on re-flagging. Not built; the open referral is visible in the flag history on the detail page.
+Revision 1 had `closed_referred` show "a referral is outstanding" on re-flagging. Not built; the open referral is visible in the flag history on the detail page.
 
 Transitions are one-way and nothing reopens. A correction is recorded as a new intervention with its own outcome, which keeps the history append-only.
 
@@ -318,25 +326,26 @@ Table 10. User-facing message text.
 
 | Condition | Message |
 |---|---|
-| Bad credentials or unknown username | `Credentials rejected.` |
-| Account locked | `This account is locked. Contact an administrator to unlock it.` |
-| Presentation not assigned | `You are not assigned to this presentation.` |
+| Bad credentials or unknown username | `Username or password not recognized.` |
+| Account locked | `This account is locked. Contact an administrator.` |
+| Presentation not assigned | `You do not have access to this presentation.` |
 | Administrative route, non-administrator | `Administrator role required.` |
-| No assignment at all | `No presentations are assigned to you. An administrator assigns presentations in the Django admin.` |
-| No model at this horizon | `No model is current at week N. An administrator needs to retrain before a ranking exists.` |
-| No scores for this presentation | `No students in this presentation have a stored risk score at week N. Models are trained on the 2013 presentations and score the 2014 ones.` |
+| No assignment at all | `No presentations are assigned to your account. An administrator can assign one.` |
+| No model at this horizon | `No model has been trained for week N.` followed by the horizons that do have models, and a link to retrain for administrators or an instruction to contact one otherwise |
 | Student has no engagement data | `No engagement data recorded yet.` |
-| Student withdrawn | `this student unregistered on day N` |
-| Future intervention date | `the date cannot be in the future (today is DATE)` |
-| Intervention dated before its flag | `the date cannot be before the flag was raised on DATE` |
-| Unknown intervention type | `unknown intervention type 'X'` |
+| Student withdrawn | `Student withdrew on day N; outreach not available.` |
+| No intervention type chosen | `Select an intervention type.` |
+| Future intervention date | `An intervention cannot be dated in the future.` |
+| Intervention dated before its flag | `An intervention cannot be dated before its flag. The earliest permitted date is DATE.` |
 | Subgroup under threshold | `suppressed (n < 20)` |
-| Every subgroup under threshold | `Every group in this breakdown has fewer than 20 students, so the table is suppressed in full.` |
-| Cohort too small | `This presentation has N scored students, fewer than the 10 needed for any aggregate. No breakdown is shown.` |
+| Every level suppressed | `This presentation is too small to break down by DIMENSION.` The distribution above it is still shown. |
+| Cohort too small | `This cohort is too small for aggregate reporting.` |
 | Schema mismatch | `studentVle: expected column sum_click at position 6, found clicks` |
-| Empty filter result | `No entries match these filters.` |
+| Empty filter result | `No entries match this filter.` |
 
-The first message is identical for a wrong password and an unknown username, so the form does not reveal which accounts exist. Revision 1 additionally required the login view to pad its response to a fixed time floor. That is not built. Django's authentication backend runs a dummy password hash for an unknown username, which equalizes the common case, but a locked account is refused before any hash is computed and therefore returns measurably sooner. Section 6 keeps it open.
+These are the strings the SRS fixes in its use-case exception flows, used verbatim. Where the SRS gives none — the administrative-route refusal, the earliest-permitted-date message — the wording follows the same register.
+
+The first message is identical for a wrong password and an unknown username, so the form does not reveal which accounts exist. The SRS additionally implies a fixed time floor on the login failure path. That is not built. Django's authentication backend runs a dummy password hash for an unknown username, which equalizes the common case, but a locked account is refused before any hash is computed and therefore returns measurably sooner. Section 6 keeps it open.
 
 ## 3.9 Repository layout
 
@@ -357,7 +366,8 @@ earlyalert/
   accounts/                 Profile, authz.py, login and lockout, seed_accounts
   cohorts/                  Presentation, Student, DataUpload, upload, ingest, detail
   features/                 WeeklyFeatures, rebuild job
-  scoring/                  ModelVersion, RiskScore, retrain, ranking, export, dashboard
+  scoring/                  ModelVersion, RiskScore, retrain, ranking, export,
+                            dashboard, bands.py, summary.py
   interventions/            Flag, Intervention, InterventionOutcome, workflow rules
   audit/                    AuditEntry, append-only writer, filtered log view
   templates/                base.html plus one directory per app
@@ -382,6 +392,16 @@ It builds the weekly features, then fits every cell of a 4 x 3 x 3 grid — feat
 The majority baseline is not a cell of the grid. It ignores the features, so it has one value per horizon rather than one per cell, and it is written separately.
 
 **Every row carries the baseline it sits on and the ratio to it, and that is not decoration.** AUC-PR's floor is the positive rate, and the positive rate falls at every horizon because the cohort filter removes students who have already unregistered, from 0.167 at week 4 to 0.117 at week 12. Raw AUC-PR therefore falls with the horizon even where the model is improving. Horizons must be compared on the ratio; within one horizon, raw AUC-PR compares cells correctly.
+
+## 3.11 Risk bands
+
+The SRS requires a risk band on the ranking row (UC03 step 4), as a sort key (UC03 4a), in the CSV export (UC03 4d), on the student detail view (UC04 step 4), and as a count on the dashboard (UC08 step 4). It never says what one is: there is no definition in Section 3.1.3 and no thresholds anywhere. `scoring/bands.py` is the definition.
+
+A band is a position within the cohort, not a fixed probability cutoff, for two reasons. The base rate moves with the horizon — a fifth of the week 4 cohort withdraws against an eighth of the week 12 cohort — so a fixed cutoff would band the same student differently at different horizons for a reason that has nothing to do with that student. And the SRS mandates balanced class weights for logistic regression, under which predicted probabilities are systematically inflated; an absolute "High above 0.70" would put a third of a cohort in the top band and tell an advisor nothing.
+
+High is the top 10 percent of the scored cohort, Medium the next 20, Low the remaining 70. The High share is deliberately the same figure as the capacity threshold the false-negative rate is measured at in Section 3.5, so that "the students in the High band" and "the students an advisor is expected to reach" are the same set. The most at-risk student is always High, whatever the size of the cohort.
+
+Bands are computed at read time from rank within the presentation rather than stored, so they stay correct when a retrain changes the ordering. Ties break by student id, matching the ranking page, so a band is the same whichever screen it is read from.
 
 # 4. Requirements traceability
 
@@ -593,6 +613,8 @@ Design questions not settled. Each changes either a stored value or a reported r
 
 - **Module CCC.** Now dropped from evaluation and the exclusion reported, which is the SRS default. Reporting it separately as a transfer case remains the alternative. Evidence: CCC is 21.5 percent of the week 8 test set, and including it changed which classifier won at every horizon and reversed the ordering of the demographic and engagement feature sets.
 - **The n < 20 suppression floor.** Evidence says the two places it applies are not alike. It never binds on the whole test year, where the smallest IMD group holds 596 students, and binds constantly on the per-presentation dashboard, where 6 of the 2014 presentations suppress at least one group. Whether the dashboard wants a floor that scales with the presentation is open.
+- **The fairness metric, now decided.** The SRS named two. Both are reported, with the false-negative rate at a 10 percent capacity threshold as the headline because it is the harm Section 1 argues about. The capacity figure is a convention, not a measurement; if an advisory team's real capacity is known, it belongs here.
+- **The risk band definition, now supplied.** Section 3.11. Cohort-relative at 10/20/70. The SRS required the band on four screens and defined it nowhere, so this is a decision the build had to make rather than one it inherited.
 - **Feature attribution method.** Coefficients and permutation importance are not comparable, so a version trained with one cannot be compared against a version trained with the other, and the method is not currently stored on the ModelVersion row. Fixing one method for all versions would be simpler and is probably right; recording the method is the alternative and is two fields.
 - **Storing the random seed.** Fixed at 42 as a module constant and not stored per version. Nothing currently varies it, so the stored field would be a constant column; it becomes worth having the moment a version is trained with anything else.
 - **Login response timing.** The failure message is identical for a wrong password and an unknown username, but a locked account is refused before any password hash is computed and so returns sooner. A fixed time floor on the failure path would close it.

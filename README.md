@@ -105,6 +105,22 @@ Pipeline tests run without a server, because `pipeline/` imports no Django.
 Test data is a synthetic 50-student cohort in `tests/fixtures/`; no real OULAD
 rows appear in any test.
 
+## Two definitions the SRS required and did not supply
+
+**The fairness metric.** The SRS names a per-subgroup false negative rate in
+Section 1 and AUC-ROC, AUC-PR and Brier per subgroup in UC11. Both are
+reported. The false-negative rate is measured at a capacity threshold — the top
+10% of the test cohort by risk, one threshold shared across subgroups — because
+that is the number an advisory team has and because precision 0.50 is barely
+reachable at these base rates.
+
+**The risk band.** Required on four screens and defined nowhere. Cohort-relative:
+High is the top 10%, Medium the next 20%, Low the rest. The High share is the
+same figure as the capacity threshold, so the students in the High band are the
+students an advisor is expected to reach.
+
+Both are one constant each, in `pipeline/fairness.py` and `scoring/bands.py`.
+
 ## What the audit log records
 
 Every state-changing action writes exactly one entry, and the log has no

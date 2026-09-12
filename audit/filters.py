@@ -27,13 +27,22 @@ class AuditFilters:
     target: str = ""
     date_from: dt.date | None = None
     date_to: dt.date | None = None
+    # True when date_from was supplied by the default window rather than typed.
+    windowed: bool = False
 
     @property
     def active(self) -> bool:
-        return any(
-            [self.action, self.role, self.username, self.target,
-             self.date_from, self.date_to]
-        )
+        """True when the reader narrowed the log themselves.
+
+        The default 30-day window does not count: a reader who typed nothing
+        has not filtered anything, and telling them "no entries match this
+        filter" for a log they never filtered would be wrong.
+        """
+        if self.windowed:
+            return any([self.action, self.role, self.username, self.target,
+                        self.date_to])
+        return any([self.action, self.role, self.username, self.target,
+                    self.date_from, self.date_to])
 
     def describe(self) -> str:
         """Output: the filters as one line, for the audit entry an export writes."""
@@ -46,7 +55,7 @@ class AuditFilters:
             parts.append(f"user={self.username}")
         if self.target:
             parts.append(f"target~{self.target}")
-        if self.date_from:
+        if self.date_from and not self.windowed:
             parts.append(f"from={self.date_from}")
         if self.date_to:
             parts.append(f"to={self.date_to}")
@@ -60,21 +69,38 @@ def _date(value: str) -> dt.date | None:
         return None
 
 
-def parse_filters(params) -> AuditFilters:
-    """Input: request.GET. Output: AuditFilters.
+def parse_filters(params, default_window_days: int | None = None) -> AuditFilters:
+    """Input: request.GET, and optionally the default window in days.
+    Output: AuditFilters.
 
     An unrecognized action or role is dropped rather than applied, so a typo in
     the query string shows the whole log instead of silently showing none of it.
+
+    With no date given at all, the window defaults to the last
+    default_window_days. Passing `all=1` lifts it, so the whole log is still
+    reachable without typing a date from before the deployment existed.
     """
     action = (params.get("action") or "").strip()
     role = (params.get("role") or "").strip()
+    date_from = _date(params.get("date_from"))
+    date_to = _date(params.get("date_to"))
+    windowed = False
+    if (
+        default_window_days
+        and date_from is None
+        and date_to is None
+        and not params.get("all")
+    ):
+        date_from = dt.date.today() - dt.timedelta(days=default_window_days)
+        windowed = True
     return AuditFilters(
         action=action if action in ACTIONS else "",
         role=role if role in ROLES else "",
         username=(params.get("username") or "").strip(),
         target=(params.get("target") or "").strip(),
-        date_from=_date(params.get("date_from")),
-        date_to=_date(params.get("date_to")),
+        date_from=date_from,
+        date_to=date_to,
+        windowed=windowed,
     )
 
 

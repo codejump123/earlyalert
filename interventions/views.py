@@ -68,6 +68,8 @@ def record_intervention_view(request, flag_id):
             if "note" in request.POST:
                 add_note(request.user, flag, request.POST.get("note", ""))
                 messages.success(request, "Note added.")
+                if request.POST.get("next") == "detail":
+                    return redirect("student_detail", student_id=flag.student_id)
             else:
                 record_intervention(
                     request.user,

@@ -68,6 +68,88 @@ presentation is a live question; this build does not change it.
 
 Items 3 and 4 are untouched; no evidence yet.
 
+## Decisions the SRS left to the build (2026-09-12)
+
+Two things the SRS requires and does not define. Both are recorded here because
+both change a reported result.
+
+### The fairness metric
+
+The SRS names two, and they are not the same measurement. Section 1 promises
+"per-subgroup false negative rate". UC11 step 6 specifies "AUC-ROC, AUC-PR, and
+Brier score overall and again for each subgroup". Neither mentions recall at
+precision 0.50, which the project brief added and which the build reported
+until now.
+
+**Both are reported.** The false-negative rate is the headline, because a false
+negative is a student who withdrew and was never put in front of an advisor,
+which is the harm Section 1 is written about. AUC-ROC, AUC-PR and Brier are
+reported beside it, because they are threshold-free and show whether a gap is
+about ranking or about calibration.
+
+The false-negative rate needs an operating threshold and the SRS gives none.
+Recall at precision 0.50 cannot supply one: precision 0.50 is barely reachable
+at these base rates and the recall behind it falls to 0.007 by week 12. So the
+threshold is set by **capacity** — flag the top 10 percent of the test cohort,
+one threshold shared by every subgroup — which is both stable across horizons
+and the number an advisory team actually has. A per-subgroup threshold would
+give each group its own bar and make the rates incomparable, which is the only
+reason to compute them.
+
+Ten percent is a convention, not a measurement. If a real advisory capacity is
+known it belongs in `pipeline.fairness.CAPACITY`, and every number below moves
+with it.
+
+### What the false-negative rate shows, and why it was worth the change
+
+Week 8, best model (All/hgb), IMD band, at 10 percent capacity:
+
+| IMD band | n | withdrew | flagged | FNR | AUC-ROC |
+|---|---|---|---|---|---|
+| 0-10% | 1172 | 187 | 156 | 0.701 | 0.663 |
+| 30-40% | 1293 | 188 | 119 | 0.782 | 0.663 |
+| 60-70% | 1100 | 160 | 98 | 0.812 | 0.657 |
+| 90-100% | 927 | 104 | 70 | 0.798 | 0.729 |
+| not recorded | 379 | 48 | 31 | 0.625 | 0.805 |
+
+AUC-ROC gap 0.156; false-negative-rate gap 0.188.
+
+Two things are visible here that AUC alone did not show.
+
+The first is the operational truth: **at a capacity of 10 percent the system
+misses roughly three quarters of all withdrawers**, in every band. An AUC of
+0.69 sounds moderate; "70 to 81 percent of the students who left were never
+flagged" is the same fact stated in the units the project cares about, and it
+is the honest headline for Chapter 4.
+
+The second runs opposite to the fear Section 1 raises. **The most deprived band
+is missed least** — 0.701 against 0.798 in the least deprived — because its
+higher withdrawal rate puts more of its students above a shared bar. The same
+holds for disability: 0.508 for students with a declared disability against
+0.789 without, a gap of 0.281 in their favour. On this evidence the system does
+not under-serve the groups Section 1 was written to protect. That is a finding,
+and it is not the one an AUC table would have produced: by AUC the most
+deprived band looks slightly *worse* served (0.663 against 0.729), which is the
+opposite conclusion.
+
+### The risk band
+
+The SRS requires a risk band on four screens — the ranking row, the sort
+control, the CSV export, the student detail view — and a count of students per
+band on the dashboard. It defines it nowhere: no entry in Section 3.1.3, no
+thresholds anywhere in the document.
+
+Defined in `scoring/bands.py` as a position within the cohort, not a fixed
+probability cutoff. The base rate moves with the horizon, so a fixed cutoff
+would band the same student differently at week 4 and week 12 for a reason that
+has nothing to do with that student; and under the SRS-mandated balanced class
+weights, predicted probabilities are inflated enough that an absolute "High
+above 0.70" would put a third of a cohort in the top band.
+
+High is the top 10 percent, Medium the next 20, Low the rest. The High share is
+the same figure as the capacity threshold above, so "in the High band" and
+"reached by an advisor" describe the same students.
+
 ## Findings from the full 4 x 3 x 3 grid (2026-09-12)
 
 36 cells on the real dataset, train 2013 / test 2014, in 32 seconds.

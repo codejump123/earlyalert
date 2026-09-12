@@ -33,7 +33,9 @@
     {% if score %}
       <h2>Current risk</h2>
       <p>
-        <strong>{{ score.probability|floatformat:3 }}</strong> at week {{ horizon }},
+        <strong>{{ score.probability|floatformat:3 }}</strong>
+        &middot; risk band <strong>{{ band }}</strong>
+        &middot; week {{ horizon }},
         from the {{ model.classifier }} model on feature set {{ model.feature_set }}.
       </p>
       <ul>
@@ -91,6 +93,21 @@
       <label>Reason (optional)<br><textarea name="reason" rows="3" cols="60"></textarea></label>
       <button type="submit" {% if flag_control.disabled %}disabled{% endif %}>Raise a flag</button>
       {% if flag_control.reason %}<span class="muted">{{ flag_control.reason }}</span>{% endif %}
+    </form>
+  {% elif flag_control.open_flag %}
+    <p class="muted">
+      A flag raised {{ flag_control.open_flag.created_at }} by
+      {{ flag_control.open_flag.raised_by.username }} is still open.
+      <a href="{% url 'record_intervention' flag_control.open_flag.pk %}">Open the flag</a>
+      to record an intervention or close it.
+    </p>
+    <form method="post" action="{% url 'record_intervention' flag_control.open_flag.pk %}"
+          class="stack" style="margin-top:8px">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="detail">
+      <label>Add note to existing flag<br>
+        <textarea name="note" rows="2" cols="60" required></textarea></label>
+      <button type="submit">Add note</button>
     </form>
   {% elif flag_control.reason %}
     <p class="muted">No flag control: {{ flag_control.reason }}.</p>

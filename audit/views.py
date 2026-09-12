@@ -23,14 +23,17 @@ from .filters import ROLES, filtered_entries, known_usernames, parse_filters
 from .models import ACTIONS
 from .services import record
 
-PAGE_SIZE = 50
+# UC12: thirty days spans the interval between two horizons, so the default
+# view covers everything since the last retrain.
+PAGE_SIZE = 100
+DEFAULT_WINDOW_DAYS = 30
 
 
 @login_required
 @require_http_methods(["GET"])
 def audit_view(request):
     assert_is_admin(request.user)
-    filters = parse_filters(request.GET)
+    filters = parse_filters(request.GET, default_window_days=DEFAULT_WINDOW_DAYS)
     entries = filtered_entries(filters)
 
     if request.GET.get("export") == "csv":
@@ -51,6 +54,7 @@ def audit_view(request):
             "roles": ROLES,
             "usernames": known_usernames(),
             "querystring": query.urlencode(),
+            "window_days": DEFAULT_WINDOW_DAYS,
         },
     )
 

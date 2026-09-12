@@ -89,17 +89,18 @@ def record_intervention(
             "this flag is closed; reopen the case by raising a new flag"
         )
     if intervention_type not in INTERVENTION_TYPES:
-        raise WorkflowError(f"unknown intervention type {intervention_type!r}")
+        raise WorkflowError("Select an intervention type.")
     if date is None:
-        raise WorkflowError("an intervention needs a date")
+        raise WorkflowError("An intervention cannot be dated in the future.")
 
     today = timezone.localdate()
     raised_on = timezone.localtime(flag.created_at).date()
     if date > today:
-        raise WorkflowError(f"the date cannot be in the future (today is {today})")
+        raise WorkflowError("An intervention cannot be dated in the future.")
     if date < raised_on:
         raise WorkflowError(
-            f"the date cannot be before the flag was raised on {raised_on}"
+            f"An intervention cannot be dated before its flag. The earliest "
+            f"permitted date is {raised_on}."
         )
 
     intervention = Intervention.objects.create(

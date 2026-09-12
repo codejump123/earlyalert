@@ -11,14 +11,35 @@ from django.conf import settings
 
 HIGH_RISK = 0.5
 
-# Dimension name to the Student field holding it.
+# Dimension name to the Student field holding it. The dashboard offers one
+# dimension the model's fairness report does not: UC08 lists number of previous
+# attempts among the breakdowns an instructor may select, while the per-model
+# breakdown is fixed at the five demographic dimensions.
 FIELD_FOR_DIMENSION = {
     "imd_band": "imd_band",
-    "disability": "disability",
-    "age_band": "age_band",
-    "highest_education": "highest_education",
     "gender": "gender",
+    "age_band": "age_band",
+    "disability": "disability",
+    "highest_education": "highest_education",
+    "num_prev_attempts": "num_prev_attempts",
 }
+DASHBOARD_DIMS = list(FIELD_FOR_DIMENSION)
+
+# How a dimension is named on screen. Derived labels are not good enough here:
+# a template filter that strips the underscore turns imd_band into "imdband".
+DIMENSION_LABELS = {
+    "imd_band": "IMD band",
+    "gender": "gender",
+    "age_band": "age band",
+    "disability": "disability",
+    "highest_education": "highest education",
+    "num_prev_attempts": "previous attempts",
+}
+
+
+def dimension_label(dimension: str) -> str:
+    """Input: a dimension name. Output: how it reads on screen."""
+    return DIMENSION_LABELS.get(dimension, dimension.replace("_", " "))
 
 NOT_RECORDED = "not recorded"
 
@@ -33,6 +54,9 @@ def level_label(dimension: str, value) -> str:
         return NOT_RECORDED
     if dimension == "disability":
         return "Yes" if value else "No"
+    if dimension == "num_prev_attempts":
+        count = int(value)
+        return "none" if count == 0 else f"{count}"
     return str(value)
 
 

@@ -184,7 +184,7 @@ def test_tc4_a_horizon_with_no_current_model_shows_a_message(advisor_client, sco
     )
     assert response.context["model"] is None
     assert response.context["total"] == 0
-    assert "No model is current at week 12" in response.content.decode()
+    assert "No model has been trained for week 12." in response.content.decode()
 
 
 def test_tc4_nothing_is_scored_at_request_time(advisor_client, scored):
@@ -340,8 +340,8 @@ def test_tc6_an_unregistered_student_disables_the_control_with_the_day(
     control = response.context["flag_control"]
     assert control.visible is True
     assert control.disabled is True
-    assert "unregistered on day 100" in control.reason
-    assert "unregistered on day 100" in response.content.decode()
+    assert control.reason == "Student withdrew on day 100; outreach not available."
+    assert "Student withdrew on day 100" in response.content.decode()
 
 
 # --- TC10: the dashboard -------------------------------------------------
@@ -403,8 +403,10 @@ def test_tc10_the_table_is_suppressed_when_every_group_is_too_small(
     )
     assert response.context["all_suppressed"] is True
     body = response.content.decode()
-    assert "suppressed in full" in body
+    assert "too small to break down by IMD band" in body
     assert "Mean risk" not in body
+    # UC08 6d: the breakdown goes, the distribution above it stays.
+    assert "Distribution" in body
 
 
 def test_tc10_no_aggregate_at_all_below_ten_scored_students(
@@ -420,8 +422,9 @@ def test_tc10_no_aggregate_at_all_below_ten_scored_students(
     assert response.context["scored_total"] == 9
     assert response.context["too_few"] is True
     body = response.content.decode()
-    assert "fewer than the 10 needed" in body
+    assert "This cohort is too small for aggregate reporting." in body
     assert "Mean risk" not in body
+    assert "Distribution" not in body
 
 
 def test_tc10_stored_model_metrics_are_shown_with_their_suppression(
@@ -445,9 +448,11 @@ def test_tc10_an_unknown_dimension_falls_back_to_the_first(advisor_client, score
 
 
 def test_tc10_every_offered_dimension_renders(advisor_client, scored):
-    for dimension in advisor_client.get(
+    offered = advisor_client.get(
         f"/presentations/{scored['presentation'].pk}/dashboard/"
-    ).context["dimensions"]:
+    ).context["dimensions"]
+    assert ("num_prev_attempts", "previous attempts") in offered
+    for dimension, _label in offered:
         response = advisor_client.get(
             f"/presentations/{scored['presentation'].pk}/dashboard/",
             {"dim": dimension},
@@ -536,3 +541,100 @@ def test_tc18_export_contains_no_identifying_field(advisor_client, scored):
     header = read_csv_response(response)[0].keys()
     for forbidden in ("name", "email", "first_name", "last_name", "contact"):
         assert not any(forbidden in column for column in header)
+
+
+# --- risk band (UC03, UC04, UC08) and the SRS message text ---------------
+
+def test_the_ranking_shows_a_risk_band_per_row(advisor_client, scored):
+    response = advisor_client.get(f"/presentations/{scored['presentation'].pk}/ranking/")
+    rows = response.context["rows"]
+    # 120 scored: the top 12 are High, the next 24 Medium.
+    assert rows[0]["band"] == "High"
+    assert rows[11]["band"] == "High"
+    assert rows[12]["band"] == "Medium"
+    assert rows[35]["band"] == "Medium"
+    assert rows[36]["band"] == "Low"
+    assert "High" in response.content.decode()
+
+
+def test_the_band_continues_across_pages(advisor_client, scored):
+    """A band is a position in the cohort, not a position on the page."""
+    page2 = advisor_client.get(
+        f"/presentations/{scored['presentation'].pk}/ranking/", {"page": 2}
+    )
+    assert {row["band"] for row in page2.context["rows"]} == {"Low"}
+
+
+def test_the_ranking_shows_the_models_auc_pr(advisor_client, scored):
+    """UC03 step 5 puts the model version's AUC-PR above the table."""
+    body = advisor_client.get(
+        f"/presentations/{scored['presentation'].pk}/ranking/"
+    ).content.decode()
+    assert "AUC-PR" in body
+    assert "0.310" in body
+
+
+def test_the_detail_view_shows_the_same_band_as_the_ranking(advisor_client, scored):
+    top = scored["students"][119]
+    response = advisor_client.get(f"/students/{top.pk}/")
+    assert response.context["band"] == "High"
+    assert "High" in response.content.decode()
+
+
+def test_the_export_carries_the_band(advisor_client, scored):
+    rows = read_csv_response(
+        advisor_client.get(
+            f"/presentations/{scored['presentation'].pk}/ranking/export.csv"
+        )
+    )
+    assert rows[0]["risk_band"] == "High"
+    assert rows[-1]["risk_band"] == "Low"
+    assert sum(1 for r in rows if r["risk_band"] == "High") == 12
+
+
+def test_the_dashboard_shows_the_distribution_and_flag_counts(advisor_client, scored):
+    """UC08 step 4: histogram, band counts, open and closed flag counts."""
+    response = advisor_client.get(
+        f"/presentations/{scored['presentation'].pk}/dashboard/"
+    )
+    assert response.context["band_counts"] == {"High": 12, "Medium": 24, "Low": 84}
+    assert sum(b["n"] for b in response.context["histogram"]) == 120
+    assert response.context["open_flags"] == 0
+    assert response.context["closed_flags"] == 0
+    body = response.content.decode()
+    assert "Distribution" in body
+    assert "open flags" in body
+
+
+def test_the_dashboard_counts_flags(advisor_client, scored, advisor_a):
+    from interventions.models import STATUS_RESOLVED
+
+    Flag.objects.create(student=scored["students"][0], raised_by=advisor_a)
+    Flag.objects.create(
+        student=scored["students"][1], raised_by=advisor_a, status=STATUS_RESOLVED
+    )
+    response = advisor_client.get(
+        f"/presentations/{scored['presentation'].pk}/dashboard/"
+    )
+    assert response.context["open_flags"] == 1
+    assert response.context["closed_flags"] == 1
+
+
+def test_previous_attempts_is_an_offered_dimension(advisor_client, scored):
+    response = advisor_client.get(
+        f"/presentations/{scored['presentation'].pk}/dashboard/",
+        {"dim": "num_prev_attempts"},
+    )
+    assert response.status_code == 200
+    assert response.context["dimension_label"] == "previous attempts"
+    assert {e["level"] for e in response.context["summary"]} == {"none"}
+
+
+def test_the_srs_message_text_is_used_verbatim(advisor_client, scored, client, advisor_a, password):
+    """The SRS fixes these strings in its use-case exception flows."""
+    from accounts.views import ACCOUNT_LOCKED, CREDENTIALS_REJECTED
+
+    assert CREDENTIALS_REJECTED == "Username or password not recognized."
+    assert ACCOUNT_LOCKED == "This account is locked. Contact an administrator."
+
+

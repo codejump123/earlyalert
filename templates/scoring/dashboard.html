@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% load dicts %}
 {% block title %}Dashboard {{ presentation }} — EarlyAlert{% endblock %}
 {% block content %}
-  <h1>{{ presentation }} — risk by {{ dimension|cut:"_"|title }}</h1>
+  <h1>{{ presentation }} — risk by {{ dimension_label }}</h1>
   <p class="muted">
     Week {{ horizon }} horizon, {{ scored_total }} scored student{{ scored_total|pluralize }}.
     Any group of fewer than {{ min_n }} students is named but not described.
@@ -11,8 +12,8 @@
     <input type="hidden" name="horizon" value="{{ horizon }}">
     <label>Break down by
       <select name="dim" onchange="this.form.submit()">
-        {% for d in dimensions %}
-          <option value="{{ d }}" {% if d == dimension %}selected{% endif %}>{{ d|cut:"_" }}</option>
+        {% for value, label in dimensions %}
+          <option value="{{ value }}" {% if value == dimension %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </label>
@@ -22,32 +23,52 @@
 
   {% if too_few %}
     <p class="notice">
-      This presentation has {{ scored_total }} scored student{{ scored_total|pluralize }},
-      fewer than the {{ min_scored }} needed for any aggregate. No breakdown is
-      shown.
-    </p>
-  {% elif all_suppressed %}
-    <p class="notice">
-      Every group in this breakdown has fewer than {{ min_n }} students, so the
-      table is suppressed in full.
+      Enrolled and scored: {{ scored_total }}.
+      This cohort is too small for aggregate reporting.
     </p>
   {% else %}
-    <h2>Risk in this presentation</h2>
+    <h2>Distribution</h2>
+    <p class="muted">
+      {% for name in bands %}{{ name }}: <strong>{{ band_counts|dictkey:name }}</strong>{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+      &middot; open flags: <strong>{{ open_flags }}</strong>
+      &middot; closed flags: <strong>{{ closed_flags }}</strong>
+    </p>
     <table>
-      <tr><th>{{ dimension|cut:"_" }}</th><th>Students</th><th>Mean risk</th><th>At or above 0.50</th></tr>
-      {% for entry in summary %}
+      <tr><th>Predicted probability</th><th>Students</th><th>Share</th><th></th></tr>
+      {% for bucket in histogram %}
         <tr>
-          <td>{{ entry.level }}</td>
-          {% if entry.suppressed %}
-            <td colspan="3" class="muted">suppressed (n &lt; {{ min_n }})</td>
-          {% else %}
-            <td>{{ entry.n }}</td>
-            <td>{{ entry.mean_probability|floatformat:3 }}</td>
-            <td>{{ entry.high_risk }} ({{ entry.high_risk_share|floatformat:2 }})</td>
-          {% endif %}
+          <td>{{ bucket.low|floatformat:1 }} &ndash; {{ bucket.high|floatformat:1 }}</td>
+          <td>{{ bucket.n }}</td>
+          <td>{{ bucket.share|floatformat:3 }}</td>
+          <td><div style="background:#4a7ab5;height:11px;width:{% widthratio bucket.n histogram_max 260 %}px"></div></td>
         </tr>
       {% endfor %}
     </table>
+
+    {% if all_suppressed %}
+      {# UC08 6d: the breakdown goes, the distribution above stays. #}
+      <p class="notice">
+        This presentation is too small to break down by {{ dimension_label }}.
+      </p>
+    {% else %}
+      <h2>Risk by {{ dimension_label }}</h2>
+      <table>
+        <tr><th>{{ dimension_label }}</th><th>Students</th><th>Mean risk</th><th>At or above 0.50</th></tr>
+        {% for entry in summary %}
+          <tr>
+            <td>{{ entry.level }}</td>
+            {% if entry.suppressed %}
+              <td colspan="3" class="muted">suppressed (n &lt; {{ min_n }})</td>
+            {% else %}
+              <td>{{ entry.n }}</td>
+              <td>{{ entry.mean_probability|floatformat:3 }}</td>
+              <td>{{ entry.high_risk }} ({{ entry.high_risk_share|floatformat:2 }})</td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </table>
+      <p class="muted">Any group of fewer than {{ min_n }} students is named but not described.</p>
+    {% endif %}
   {% endif %}
 
   {% if model_levels %}
@@ -58,7 +79,7 @@
       itself be a small-sample number.
     </p>
     <table>
-      <tr><th>{{ dimension|cut:"_" }}</th><th>Students</th><th>Withdrawal rate</th><th>AUC-ROC</th><th>Recall @ P50</th></tr>
+      <tr><th>{{ dimension_label }}</th><th>Students</th><th>Withdrawal rate</th><th>AUC-ROC</th><th>Recall @ P50</th></tr>
       {% for entry in model_levels %}
         <tr>
           <td>{{ entry.level }}</td>

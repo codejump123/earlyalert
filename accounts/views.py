@@ -12,10 +12,8 @@ from django.views.decorators.http import require_http_methods
 
 from audit.services import record
 
-CREDENTIALS_REJECTED = "Credentials rejected."
-ACCOUNT_LOCKED = (
-    "This account is locked. Contact an administrator to unlock it."
-)
+CREDENTIALS_REJECTED = "Username or password not recognized."
+ACCOUNT_LOCKED = "This account is locked. Contact an administrator."
 
 
 @require_http_methods(["GET", "POST"])

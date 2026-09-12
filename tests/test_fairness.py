@@ -150,3 +150,67 @@ def test_reportable_levels_lists_only_what_survived():
     y, p, g = cohort({"a": 60, "b": 40, "tiny": 5})
     report = subgroup_metrics(y, p, g, ["imd_band"])
     assert reportable_levels(report, "imd_band") == ["a", "b"]
+
+
+# --- the capacity threshold and the false-negative rate ------------------
+
+def test_the_capacity_threshold_flags_the_top_tenth():
+    from pipeline.fairness import CAPACITY, capacity_threshold
+
+    assert CAPACITY == 0.10
+    scores = np.linspace(0, 1, 1000)
+    threshold = capacity_threshold(scores)
+    assert (scores >= threshold).sum() == pytest.approx(100, abs=2)
+
+
+def test_the_threshold_is_shared_across_subgroups():
+    """One bar for everybody. A per-group threshold would give each group its
+    own standard and make the false-negative rates incomparable."""
+    groups = pd.DataFrame({"imd_band": ["a"] * 100 + ["b"] * 100})
+    y = np.array([0, 1] * 100)
+    # Group b scores systematically higher than group a.
+    p = np.concatenate([np.linspace(0.0, 0.4, 100), np.linspace(0.6, 1.0, 100)])
+    report = subgroup_metrics(y, p, groups, ["imd_band"])
+
+    from pipeline.fairness import capacity_threshold
+
+    assert report["imd_band"]["threshold"] == pytest.approx(capacity_threshold(p))
+    # Under one shared bar, group a is flagged for none of its withdrawals.
+    assert report["imd_band"]["levels"]["a"]["false_negative_rate"] == 1.0
+    assert report["imd_band"]["levels"]["b"]["false_negative_rate"] < 1.0
+
+
+def test_false_negative_rate_counts_withdrawers_below_the_bar():
+    from pipeline.fairness import false_negative_rate
+
+    y = np.array([1, 1, 1, 1, 0, 0])
+    p = np.array([0.9, 0.8, 0.2, 0.1, 0.95, 0.05])
+    # Threshold 0.5 catches two of the four withdrawers.
+    assert false_negative_rate(y, p, 0.5) == 0.5
+    assert false_negative_rate(np.array([0, 0]), np.array([0.1, 0.2]), 0.5) is None
+
+
+def test_each_level_reports_four_metrics_and_its_flagged_count():
+    y, p, g = cohort({"a": 60, "b": 40})
+    entry = subgroup_metrics(y, p, g, ["imd_band"])["imd_band"]["levels"]["a"]
+    for key in ("auc_roc", "auc_pr", "brier", "recall_at_p50",
+                "false_negative_rate", "flagged", "flagged_rate", "positives"):
+        assert key in entry
+    assert 0.0 <= entry["brier"] <= 1.0
+    assert entry["flagged_rate"] == entry["flagged"] / entry["n"]
+
+
+def test_both_gaps_read_as_larger_is_worse():
+    y, p, g = cohort({"a": 60, "b": 40, "c": 30})
+    report = subgroup_metrics(y, p, g, ["imd_band"])["imd_band"]
+    aucs = [e["auc_roc"] for e in report["levels"].values()]
+    fnrs = [e["false_negative_rate"] for e in report["levels"].values()]
+    assert report["gap"] == pytest.approx(max(aucs) - min(aucs))
+    assert report["fnr_gap"] == pytest.approx(max(fnrs) - min(fnrs))
+    assert report["gap"] >= 0 and report["fnr_gap"] >= 0
+
+
+def test_a_suppressed_level_still_reports_no_metrics_at_all():
+    y, p, g = cohort({"a": 60, "tiny": 4})
+    entry = subgroup_metrics(y, p, g, ["imd_band"])["imd_band"]["levels"]["tiny"]
+    assert entry == {"suppressed": True, "n": 4}

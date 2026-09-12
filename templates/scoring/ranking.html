@@ -6,7 +6,8 @@
     Week {{ horizon }} horizon.
     {% if model %}
       Scores from the current {{ model.classifier }} model on feature set
-      {{ model.feature_set }}, trained {{ model.trained_at }}.
+      {{ model.feature_set }}, trained {{ model.trained_at }},
+      AUC-PR {{ model.auc_pr|floatformat:3 }}.
       Stored scores only; nothing is computed when this page loads.
     {% endif %}
   </p>
@@ -26,8 +27,15 @@
 
   {% if not model %}
     <p class="notice">
-      No model is current at week {{ horizon }}. An administrator needs to
-      retrain before a ranking exists.
+      No model has been trained for week {{ horizon }}.
+      {% if horizons_with_models %}
+        Models exist for {% for w in horizons_with_models %}week {{ w }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      {% endif %}
+      {% if user_role == 'administrator' %}
+        <a href="{% url 'retrain' %}">Retrain</a> to create one.
+      {% else %}
+        Contact an administrator to have one trained.
+      {% endif %}
     </p>
   {% elif not total %}
     <p class="notice">
@@ -42,7 +50,7 @@
     </p>
     <table>
       <tr>
-        <th>#</th><th>Student</th><th>Risk</th><th>Leading reason</th>
+        <th>#</th><th>Student</th><th>Risk</th><th>Band</th><th>Leading reason</th>
         <th>Status</th><th>Flag</th>
       </tr>
       {% for row in rows %}
@@ -50,6 +58,7 @@
           <td class="muted">{{ forloop.counter0|add:page.start_index }}</td>
           <td><a href="{% url 'student_detail' row.student.pk %}?horizon={{ horizon }}">{{ row.student.id_student }}</a></td>
           <td>{{ row.score.probability|floatformat:3 }}</td>
+          <td>{{ row.band }}</td>
           <td>{{ row.reason }}</td>
           <td class="muted">
             {% if row.student.date_unregistration is not None %}
