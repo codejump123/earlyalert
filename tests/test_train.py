@@ -349,3 +349,23 @@ def test_explanations_are_ordered_by_magnitude():
 )
 def test_feature_text_reads_as_english(name, value, expected):
     assert describe_feature(name, value) == expected
+
+
+# --- degenerate splits ----------------------------------------------------
+
+def test_a_single_class_training_split_is_refused_not_crashed():
+    """At a late horizon the cohort filter can remove every withdrawal from one
+    side of the year split. That is a skipped grid cell, never a traceback."""
+    from pipeline.train import DegenerateSplit
+
+    X_tr, X_te, y_tr, y_te = synthetic_split()
+    with pytest.raises(DegenerateSplit, match="training split"):
+        fit_and_evaluate(X_tr, pd.Series([False] * len(y_tr)), X_te, y_te, "logreg")
+
+
+def test_a_single_class_test_split_is_refused_too():
+    from pipeline.train import DegenerateSplit
+
+    X_tr, X_te, y_tr, y_te = synthetic_split()
+    with pytest.raises(DegenerateSplit, match="test split"):
+        fit_and_evaluate(X_tr, y_tr, X_te, pd.Series([True] * len(y_te)), "logreg")

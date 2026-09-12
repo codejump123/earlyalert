@@ -118,6 +118,27 @@ files uploaded together; nothing is stored unless all seven pass validation.
 Missing values are the literal string `?`. The largest file,
 `studentVle.csv`, is ~433 MB and is never read into memory whole.
 
+## The experiment
+
+```sh
+.venv/bin/python -m pipeline.experiment --data /path/to/oulad --out results
+```
+
+Runs standalone — `pipeline/` imports no Django, so this needs no database and
+no server. 36 cells (4 feature sets x 3 horizons x 3 classifiers) in about 32
+seconds on the reference machine, including building the weekly features.
+
+Writes `results/grid.csv` (one row per cell), `results/baselines.csv`,
+`results/subgroups_w{4,8,12}.csv`, three figures, and a `README.txt` explaining
+how to read them. Only `grid.csv` is committed.
+
+**Every row of the grid carries `baseline_auc_pr` and `auc_pr_lift`, and they
+matter.** AUC-PR's floor is the positive rate, and the positive rate falls at
+every horizon because the cohort filter removes students who have already
+unregistered. Raw AUC-PR therefore falls with the horizon even where the model
+is improving. Compare cells at different horizons on lift; within one horizon,
+raw AUC-PR compares them correctly. See `DECISIONS.md`.
+
 ## Measured performance
 
 On the reference machine (Apple silicon, 8 GB), against the full dataset:
@@ -129,6 +150,7 @@ On the reference machine (Apple silicon, 8 GB), against the full dataset:
 | Build weekly features from 10,655,280 rows | under 10 min | **21.6 s**, peak RSS 1.55 GB |
 | Write 1,136,133 WeeklyFeatures rows | — | 21.4 s |
 | Retrain: 3 horizons x 4 classifiers, 45,411 scores | — | 25.8 s, peak RSS 1.06 GB |
+| Experiment: the full 36-cell grid and figures | — | 31.9 s |
 
 The feature build reads studentVle.csv in 22 chunks of 500,000 rows and holds
 one chunk plus three accumulators, never the file.
@@ -144,4 +166,4 @@ one chunk plus three accumulators, never the file.
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | done |
 | 6 | Intervention workflow | TC7, TC8, TC9 | done |
 | 7 | Audit view and polish | TC17 | done |
-| 8 | Experiment: the 36-cell grid and figures | — | not started |
+| 8 | Experiment: the 36-cell grid and figures | — | done |

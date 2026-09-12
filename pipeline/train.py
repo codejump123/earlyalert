@@ -58,6 +58,15 @@ SUBGROUP_DIMS = ["imd_band", "disability", "age_band", "highest_education", "gen
 SLOPE_WEEKS = 4
 
 
+class DegenerateSplit(Exception):
+    """A split has only one class, so nothing can be fitted or scored on it.
+
+    Happens where a horizon's cohort filter removes every withdrawal from one
+    side of the year split. Callers decide whether that is a skipped grid cell
+    or a refused retrain; it is never a crash.
+    """
+
+
 @dataclass
 class Evaluation:
     """One fitted model's performance on the held-out year."""
@@ -354,6 +363,14 @@ def fit_and_evaluate(X_tr, y_tr, X_te, y_te, classifier: str) -> Evaluation:
     """Input: the split cohort and a classifier name.
     Output: an Evaluation carrying the four metrics, the calibration bins and
     the fitted model."""
+    if len(np.unique(np.asarray(y_tr))) < 2:
+        raise DegenerateSplit(
+            "the training split has only one class; no model can be fitted"
+        )
+    if len(np.unique(np.asarray(y_te))) < 2:
+        raise DegenerateSplit(
+            "the test split has only one class; no metric can be computed"
+        )
     model = make_classifier(classifier)
     X_tr = X_tr.astype(float)
     X_te = X_te.astype(float)

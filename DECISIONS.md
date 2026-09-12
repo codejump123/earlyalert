@@ -23,7 +23,100 @@ set and report its metrics separately, which measures generalization to an
 unseen module rather than to an unseen year, and answers a different question
 than the one the experiment asks.
 
-Items 1-4 are untouched so far; no evidence yet.
+### 2. Whether week 4 is a meaningful horizon given late registrants
+
+**2026-09-12 — evidence from the full grid.** Week 4 is meaningful, but it is
+the weakest horizon at telling students apart, and it only looks like the
+strongest if AUC-PR is read raw.
+
+| Horizon | Best AUC-PR | Baseline | Lift | AUC-ROC | Recall @ P50 |
+|---|---|---|---|---|---|
+| week 4 | 0.346 | 0.197 | x1.75 | 0.664 | 0.134 |
+| week 8 | 0.307 | 0.163 | x1.88 | 0.694 | 0.036 |
+| week 12 | 0.258 | 0.135 | x1.91 | 0.688 | 0.007 |
+
+Week 4 has the highest raw AUC-PR and by far the best recall at precision
+0.50, because a fifth of the week 4 cohort withdraws and a high-precision
+queue is therefore easy to fill. It has the lowest lift and the lowest
+AUC-ROC: the model at week 4 is separating students less well, and is carried
+by the base rate.
+
+The practical reading is the opposite of the usual worry. Week 4 is worth
+keeping, not because it discriminates well, but because it is when a queue at
+usable precision can actually be filled. Week 8 is where discrimination
+arrives, and week 12 adds nothing to it (AUC-ROC 0.694 to 0.688).
+
+### 1. Whether the n < 20 threshold should scale with cohort size
+
+**2026-09-12 — evidence, though not a decision.** The floor never binds at the
+level the fairness report is computed on: across the whole 2014 test year,
+every IMD band holds between 596 and 1,636 students and nothing is suppressed.
+It binds constantly one level down, on the per-presentation dashboard, where 6
+of the 2014 presentations suppress at least one band — AAA/2014J suppresses
+both `0-10%` (n=17) and `not recorded` (n=8).
+
+So the two places the rule applies are not alike, and a single constant serves
+one of them. Whether the dashboard wants a floor that scales with the
+presentation is a live question; this build does not change it.
+
+Items 3 and 4 are untouched; no evidence yet.
+
+## Findings from the full 4 x 3 x 3 grid (2026-09-12)
+
+36 cells on the real dataset, train 2013 / test 2014, in 32 seconds.
+`results/grid.csv` is the table Chapter 4 is written from.
+
+### Assessment behaviour carries the signal; clicks barely beat demographics
+
+Lift over the per-horizon baseline, best classifier per cell:
+
+| Feature set | week 4 | week 8 | week 12 |
+|---|---|---|---|
+| D demographic | x1.31 | x1.32 | x1.28 |
+| A assessment | x1.63 | x1.79 | x1.78 |
+| E engagement | x1.22 | x1.31 | x1.30 |
+| All | x1.75 | x1.88 | x1.91 |
+
+The result worth writing up is that **E barely beats D**. Clickstream
+engagement, the thing a VLE log is mostly made of, is worth about as much as
+knowing a student's IMD band and age. What predicts withdrawal is whether
+assessments are being submitted and what they score — which is close to
+tautological but is exactly the kind of claim the grid exists to test. D and E
+together are still well short of A, and All beats A by roughly 0.1 of lift,
+so the sets are not redundant.
+
+### More weeks stop helping after week 8
+
+AUC-ROC for All: 0.664 at week 4, 0.694 at week 8, 0.688 at week 12. The gain
+is between weeks 4 and 8; week 12 gives none of it back. Combined with the
+earliness reading in open item 2, week 8 is the horizon to defend.
+
+### Precision 0.50 is barely reachable at these base rates
+
+recall_at_p50 for the best cell falls 0.134, 0.036, 0.007 across the horizons.
+At a 13-20% base rate, a queue at 50% precision is nearly empty by week 12.
+This column will read as near-zeroes in the grid; that is the finding, not a
+defect. If the SRS wants an operational threshold, precision 0.30 or a fixed
+queue length would say more.
+
+### Calibration separates the classifiers where AUC does not
+
+Mean Brier across the grid: hgb 0.134, rf 0.185, logreg 0.241 — against
+baselines of 0.117 to 0.159. Logistic regression is beaten by predicting the
+base rate for everyone, while ranking as well as anything (mean AUC-PR 0.244
+against hgb's 0.245). `results/fig_calibration_w8.png` shows the whole curve
+sitting below the diagonal.
+
+Two classifiers that are indistinguishable on AUC are far apart on whether
+their output can be shown to a person as a probability. That is the argument
+for the Brier column.
+
+### The model is close to uniform across IMD bands
+
+At week 8, all 11 IMD levels clear the n < 20 floor (596 to 1,636 students)
+and AUC-ROC runs 0.66 to 0.75, a best-minus-worst gap of 0.087. The widest
+band is `not recorded` at 0.75 — the students with no IMD band are predicted
+slightly *better* than anyone else. No band is badly served by the model.
 
 ## Findings from the first full training run (2026-09-12)
 
