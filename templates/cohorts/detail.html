@@ -7,6 +7,10 @@
     <a href="{% url 'ranking' presentation.pk %}?horizon={{ horizon }}">back to ranking</a>
   </p>
 
+  {% for message in messages %}
+    <p class="{% if message.tags == 'error' %}error{% else %}notice{% endif %}">{{ message }}</p>
+  {% endfor %}
+
   <h2>Demographics</h2>
   <table>
     <tr><th>IMD band</th><td>{{ student.imd_band|default:"not recorded" }}</td>
@@ -69,7 +73,8 @@
       <tr><th>Raised</th><th>By</th><th>Status</th><th>Reason</th><th>Closed</th></tr>
       {% for flag in flags %}
         <tr>
-          <td>{{ flag.created_at }}</td><td>{{ flag.raised_by.username }}</td>
+          <td><a href="{% url 'record_intervention' flag.pk %}">{{ flag.created_at }}</a></td>
+          <td>{{ flag.raised_by.username }}</td>
           <td>{{ flag.get_status_display }}</td><td>{{ flag.reason|default:"—" }}</td>
           <td>{{ flag.closed_at|default:"—" }}</td>
         </tr>
@@ -80,12 +85,13 @@
   {% endif %}
 
   {% if flag_control.visible %}
-    <p style="margin-top:12px">
-      <button type="button" disabled>Raise a flag</button>
-      <span class="muted">
-        {% if flag_control.reason %}{{ flag_control.reason }}{% else %}available{% endif %}
-      </span>
-    </p>
+    <form method="post" action="{% url 'create_flag' student.pk %}" class="stack"
+          style="margin-top:12px">
+      {% csrf_token %}
+      <label>Reason (optional)<br><textarea name="reason" rows="3" cols="60"></textarea></label>
+      <button type="submit" {% if flag_control.disabled %}disabled{% endif %}>Raise a flag</button>
+      {% if flag_control.reason %}<span class="muted">{{ flag_control.reason }}</span>{% endif %}
+    </form>
   {% elif flag_control.reason %}
     <p class="muted">No flag control: {{ flag_control.reason }}.</p>
   {% endif %}

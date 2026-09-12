@@ -100,6 +100,6 @@ one chunk plus three accumulators, never the file.
 | 3 | Features: chunked weekly aggregation, rebuild view | TC13, TC14, `test_features.py` | done |
 | 4 | Training: cohort, split, fit, fairness, retrain view | TC15, TC16, `test_fairness.py` | done |
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | done |
-| 6 | Intervention workflow | TC7, TC8, TC9 | not started |
+| 6 | Intervention workflow | TC7, TC8, TC9 | done |
 | 7 | Audit view and polish | TC17 | not started |
 | 8 | Experiment: the 36-cell grid and figures | — | not started |

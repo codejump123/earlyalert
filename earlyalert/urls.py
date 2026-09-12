@@ -9,4 +9,5 @@ urlpatterns = [
     path("", include("cohorts.urls")),
     path("", include("features.urls")),
     path("", include("scoring.urls")),
+    path("", include("interventions.urls")),
 ]

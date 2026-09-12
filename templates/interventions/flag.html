@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Flag {{ flag.pk }} — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Flag on student {{ student.id_student }}</h1>
+  <p class="muted">
+    {{ student.presentation }} ·
+    raised {{ flag.created_at }} by {{ flag.raised_by.username }} ·
+    status <strong>{{ flag.get_status_display }}</strong>
+    {% if flag.closed_at %}· closed {{ flag.closed_at }}{% endif %} ·
+    <a href="{% url 'student_detail' student.pk %}">student detail</a>
+  </p>
+
+  {% for message in messages %}
+    <p class="{% if message.tags == 'error' %}error{% else %}notice{% endif %}">{{ message }}</p>
+  {% endfor %}
+
+  {% if student.date_unregistration is not None %}
+    <p class="notice">
+      This student unregistered on day {{ student.date_unregistration }}.
+    </p>
+  {% endif %}
+
+  <h2>Reason and notes</h2>
+  {% if flag.reason %}
+    <pre style="background:#fff;border:1px solid #e6e6e6;padding:10px;white-space:pre-wrap">{{ flag.reason }}</pre>
+  {% else %}
+    <p class="muted">No reason was given when this flag was raised.</p>
+  {% endif %}
+
+  {% if flag.is_open %}
+    <form method="post" class="stack">
+      {% csrf_token %}
+      <label>Add a note<br><textarea name="note" rows="2" cols="60" required></textarea></label>
+      <button type="submit">Add note</button>
+    </form>
+  {% endif %}
+
+  <h2>Interventions</h2>
+  {% if interventions %}
+    <table>
+      <tr><th>Date</th><th>Type</th><th>Advisor</th><th>Notes</th><th>Outcome</th></tr>
+      {% for intervention in interventions %}
+        <tr>
+          <td>{{ intervention.date }}</td>
+          <td>{{ intervention.get_intervention_type_display }}</td>
+          <td>{{ intervention.advisor.username }}</td>
+          <td>{{ intervention.notes|default:"—" }}</td>
+          <td>
+            {% if intervention.outcome %}
+              {{ intervention.outcome.get_outcome_display }}
+              <span class="muted">({{ intervention.outcome.recorded_at }})</span>
+            {% elif flag.is_open %}
+              <form method="post" action="{% url 'record_outcome' intervention.pk %}"
+                    onsubmit="return confirm('Recording an outcome closes this flag. Continue?')">
+                {% csrf_token %}
+                <select name="outcome" required>
+                  <option value="">Record outcome…</option>
+                  {% for value, label in outcome_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Save</button>
+              </form>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">Nothing recorded against this flag yet.</p>
+  {% endif %}
+
+  {% if flag.is_open %}
+    <h2>Record an intervention</h2>
+    <form method="post" class="stack">
+      {% csrf_token %}
+      <label>Type<br>
+        <select name="intervention_type" required>
+          {% for value, label in intervention_types %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Date<br><input type="date" name="date" value="{{ today|date:'Y-m-d' }}" required></label>
+      <label>Notes<br><textarea name="notes" rows="3" cols="60"></textarea></label>
+      <button type="submit">Record intervention</button>
+    </form>
+  {% else %}
+    <p class="notice">
+      This flag is closed as "{{ flag.get_status_display }}". Nothing further
+      can be recorded against it.
+    </p>
+  {% endif %}
+{% endblock %}

@@ -80,6 +80,21 @@ attribution between near-duplicate columns is not stable.
 
 ## Gaps between the SRS and the data
 
+### flag_note_added is an action with no endpoint
+
+**2026-09-12.** The SRS action list includes `flag_note_added`, but the
+endpoint table has no URL that could produce it: the three workflow endpoints
+are `/students/<id>/flag/`, `/flags/<id>/intervention/` and
+`/interventions/<id>/outcome/`.
+
+Rather than invent a URL the SRS does not have, the note form posts to the
+flag's own page, `/flags/<id>/intervention/`, and is told apart from the
+intervention form by the field submitted. Notes append to `Flag.reason` with a
+timestamp and the advisor's username; nothing already written is overwritten,
+and notes are refused once the flag is closed.
+
+If the SRS intends a dedicated endpoint, this is the one place to change.
+
 ### The SRS gives two incompatible week numberings
 
 **2026-09-12.** Three statements in the brief cannot all hold:
