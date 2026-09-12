@@ -85,18 +85,6 @@ in `DECISIONS.md`: the note form on `/flags/<id>/intervention/`, because
 the audit log, because Phase 7 requires a CSV export the table does not list.
 Neither adds a URL.
 
-## Documents
-
-`docs/DESIGN.md` is the design document, revised against the built system, and
-`docs/SYNOPSIS.md` the project synopsis; both are also rendered to .docx beside
-them. `docs/Pokharel_CISC699_SRS_rev2.docx` is the SRS with its three internal
-inconsistencies corrected — it is the authoritative document, so it was edited
-in place rather than retyped, and only six things in it changed. `DECISIONS.md` records evidence on the SRS open items and the gaps
-between the SRS and the data that the build had to settle.
-
-Test cases are numbered as the design document's Table 12 defines them, TC1
-through TC20, and that table names the module implementing each.
-
 ## Tests
 
 ```sh
