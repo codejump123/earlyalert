@@ -59,6 +59,32 @@ where an administrator manages users and assigns presentations.
 A newly seeded account has no presentation assignments, so the selector is
 empty until an administrator assigns presentations in the Django admin.
 
+## Endpoints
+
+| URL | Purpose | Role | UC |
+|---|---|---|---|
+| `/login/`, `/logout/` | sign in and out | any | UC01 |
+| `/presentations/` | pick a presentation and horizon | any | UC02 |
+| `/presentations/<id>/ranking/?horizon=8` | students ranked by stored risk | assigned | UC03 |
+| `/presentations/<id>/ranking/export.csv` | the whole ranking as CSV | assigned | UC03 |
+| `/students/<id>/` | one student's demographics, engagement, risk | assigned | UC04 |
+| `/students/<id>/flag/` | raise a flag | advisor | UC05 |
+| `/flags/<id>/intervention/` | the flag's page: notes and interventions | advisor | UC06 |
+| `/interventions/<id>/outcome/` | record an outcome, closing the flag | advisor | UC07 |
+| `/presentations/<id>/dashboard/?dim=imd_band` | risk by demographic group | assigned | UC08 |
+| `/admin/upload/` | upload the seven OULAD files | administrator | UC09 |
+| `/admin/rebuild/` | rebuild weekly features | administrator | UC10 |
+| `/admin/retrain/` | retrain and rescore | administrator | UC11 |
+| `/admin/audit/` | the audit log, filtered; `?export=csv` for CSV | administrator | UC12 |
+
+`/django-admin/` handles user accounts, roles and presentation assignments.
+
+Two endpoints in this table are not in the SRS endpoint table and are marked
+in `DECISIONS.md`: the note form on `/flags/<id>/intervention/`, because
+`flag_note_added` is an action with no URL of its own, and `?export=csv` on
+the audit log, because Phase 7 requires a CSV export the table does not list.
+Neither adds a URL.
+
 ## Tests
 
 ```sh
@@ -68,6 +94,22 @@ empty until an administrator assigns presentations in the Django admin.
 Pipeline tests run without a server, because `pipeline/` imports no Django.
 Test data is a synthetic 50-student cohort in `tests/fixtures/`; no real OULAD
 rows appear in any test.
+
+## What the audit log records
+
+Every state-changing action writes exactly one entry, and the log has no
+update or delete path: `AuditEntry.save()` refuses to rewrite an existing row,
+and both the instance and the queryset refuse `delete()`. The Django admin
+registration refuses add, change and delete as well.
+
+`login`, `login_failed`, `login_locked`, `denied`, `flag_created`,
+`flag_note_added`, `intervention_recorded`, `outcome_recorded`,
+`upload_accepted`, `upload_rejected`, `rebuild_started`, `rebuild_completed`,
+`retrain_started`, `retrain_completed`, `retrain_failed`, `export`.
+
+A refused rebuild writes nothing, because the SRS action list has no
+`rebuild_failed` and a refusal changes no state. A refused retrain writes
+`retrain_failed` with the reason, because the SRS does list one.
 
 ## Data
 
@@ -101,5 +143,5 @@ one chunk plus three accumulators, never the file.
 | 4 | Training: cohort, split, fit, fairness, retrain view | TC15, TC16, `test_fairness.py` | done |
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | done |
 | 6 | Intervention workflow | TC7, TC8, TC9 | done |
-| 7 | Audit view and polish | TC17 | not started |
+| 7 | Audit view and polish | TC17 | done |
 | 8 | Experiment: the 36-cell grid and figures | — | not started |

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Audit log — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Audit log</h1>
+  <p class="muted">
+    Append-only. Nothing here can be edited or deleted, by this page or any
+    other. {{ total }} entr{{ total|pluralize:"y,ies" }} match the current filters.
+  </p>
+
+  <form method="get" style="margin-bottom:14px">
+    <label>Action
+      <select name="action">
+        <option value="">any</option>
+        {% for a in actions %}
+          <option value="{{ a }}" {% if a == filters.action %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Role
+      <select name="role">
+        <option value="">any</option>
+        {% for r in roles %}
+          <option value="{{ r }}" {% if r == filters.role %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>User
+      <select name="username">
+        <option value="">any</option>
+        {% for u in usernames %}
+          <option value="{{ u }}" {% if u == filters.username %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Target contains <input type="text" name="target" value="{{ filters.target }}" size="14"></label>
+    <label>From <input type="date" name="date_from" value="{{ filters.date_from|date:'Y-m-d' }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ filters.date_to|date:'Y-m-d' }}"></label>
+    <button type="submit">Filter</button>
+    <a href="{% url 'audit' %}">Clear</a>
+    <a href="{% url 'audit' %}?{{ querystring }}{% if querystring %}&{% endif %}export=csv">Export CSV</a>
+  </form>
+
+  {% if total %}
+    <table>
+      <tr><th>Timestamp</th><th>User</th><th>Role</th><th>Action</th><th>Target</th></tr>
+      {% for entry in page.object_list %}
+        <tr>
+          <td class="muted">{{ entry.timestamp|date:"Y-m-d H:i:s" }}</td>
+          <td>{% if entry.user %}{{ entry.user.username }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{{ entry.role|default:"—" }}</td>
+          <td>{{ entry.action }}</td>
+          <td>{{ entry.target|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+
+    {% if page.paginator.num_pages > 1 %}
+      <p>
+        {% if page.has_previous %}
+          <a href="?{{ querystring }}{% if querystring %}&{% endif %}page={{ page.previous_page_number }}">Previous</a>
+        {% endif %}
+        <span class="muted">page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}
+          <a href="?{{ querystring }}{% if querystring %}&{% endif %}page={{ page.next_page_number }}">Next</a>
+        {% endif %}
+      </p>
+    {% endif %}
+  {% else %}
+    <p class="notice">
+      {% if filters.active %}No entries match these filters.{% else %}The log is empty.{% endif %}
+    </p>
+  {% endif %}
+{% endblock %}
