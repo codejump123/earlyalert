@@ -10,3 +10,4 @@ results/*
 artifacts/
 .pytest_cache/
 .DS_Store
+jobs/

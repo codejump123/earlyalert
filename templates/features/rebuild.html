@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Rebuild features — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Rebuild weekly features</h1>
+  <p class="muted">
+    Reads the current upload and rewrites every WeeklyFeatures row. Runs in
+    this process; one rebuild or retrain at a time.
+  </p>
+
+  {% if result %}
+    {% if result.ok %}
+      <p class="notice">
+        Rebuild complete: {{ result.rows }} rows for {{ result.students }}
+        students in {{ result.seconds|floatformat:1 }}s.
+      </p>
+    {% else %}
+      <p class="error">Rebuild refused — {{ result.error }}</p>
+    {% endif %}
+  {% endif %}
+
+  {% if running %}
+    <p class="notice">
+      {{ running.name }} started {{ running.started_at }} (pid {{ running.pid }}).
+      Reload to see further progress.
+    </p>
+  {% endif %}
+
+  <p class="muted">
+    Stored feature rows: {{ feature_rows }}.
+    {% if current %}Current upload: batch {{ current.batch_id }}.
+    {% else %}No complete upload is in place.{% endif %}
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" {% if not current or running %}disabled{% endif %}>
+      Rebuild features
+    </button>
+  </form>
+
+  {% if progress %}
+    <h2>Progress</h2>
+    <pre class="muted" style="background:#fff;border:1px solid #e6e6e6;padding:10px;overflow-x:auto;max-height:24em">{% for line in progress %}{{ line }}
+{% endfor %}</pre>
+  {% endif %}
+{% endblock %}

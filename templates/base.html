@@ -30,6 +30,10 @@
   <span class="brand">EarlyAlert</span>
   {% if user.is_authenticated %}
     <a href="{% url 'presentation_selector' %}">Presentations</a>
+    {% if user_role == 'administrator' %}
+      <a href="{% url 'upload' %}">Upload</a>
+      <a href="{% url 'rebuild' %}">Rebuild</a>
+    {% endif %}
     <span class="ctx">
       <span>Presentation: <b>{% if active_presentation %}{{ active_presentation }}{% else %}none selected{% endif %}</b></span>
       <span>Horizon: <b>week {{ active_horizon }}</b></span>

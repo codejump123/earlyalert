@@ -76,13 +76,27 @@ files uploaded together; nothing is stored unless all seven pass validation.
 Missing values are the literal string `?`. The largest file,
 `studentVle.csv`, is ~433 MB and is never read into memory whole.
 
+## Measured performance
+
+On the reference machine (Apple silicon, 8 GB), against the full dataset:
+
+| Step | Target | Actual |
+|---|---|---|
+| Validate seven files, incl. SHA-256 of 433 MB | — | 0.4 s |
+| Ingest 32,593 students | — | 0.8 s |
+| Build weekly features from 10,655,280 rows | under 10 min | **21.6 s**, peak RSS 1.55 GB |
+| Write 1,136,133 WeeklyFeatures rows | — | 21.4 s |
+
+The feature build reads studentVle.csv in 22 chunks of 500,000 rows and holds
+one chunk plus three accumulators, never the file.
+
 ## Build status
 
 | Phase | Scope | Tests | Status |
 |---|---|---|---|
 | 1 | Scaffold: models, roles, auth, selector, authorization service | TC1, TC2, TC3, TC5, `test_authz.py` | done |
 | 2 | Ingest: upload view, validation, loader | TC11, TC12, `test_validate.py` | done |
-| 3 | Features: chunked weekly aggregation, rebuild view | TC13, TC14, `test_features.py` | not started |
+| 3 | Features: chunked weekly aggregation, rebuild view | TC13, TC14, `test_features.py` | done |
 | 4 | Training: cohort, split, fit, fairness, retrain view | TC15, TC16, `test_fairness.py` | not started |
 | 5 | Advisor views: ranking, export, detail, dashboard | TC4, TC6, TC10, TC18 | not started |
 | 6 | Intervention workflow | TC7, TC8, TC9 | not started |

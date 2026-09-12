@@ -27,6 +27,40 @@ Items 1-4 are untouched so far; no evidence yet.
 
 ## Gaps between the SRS and the data
 
+### The SRS gives two incompatible week numberings
+
+**2026-09-12.** Three statements in the brief cannot all hold:
+
+1. Data: "Week w covers days 7(w-1) to 7w-1." — week 1 is days 0-6.
+2. features.py: "compute week = `date // 7`" — week 1 would be days 7-13.
+3. features.py, same sentence: "negative dates map to week <= 0."
+
+`date // 7` satisfies neither (1) nor (3): it puts day 0 in week 0, and maps
+day -1 to week -1 rather than week 0. `date // 7 + 1` satisfies both, and also
+matches vle.csv, whose `week_from`/`week_to` are 1-based.
+
+Implemented as `date // 7 + 1`, in `pipeline.features.week_of`, with the
+convention isolated in the constant `WEEK_OFFSET` so a change is one line.
+Week 1 is therefore days 0-6, week 8 ends on day 55, and pre-start activity
+falls in week 0 and below.
+
+This matters beyond naming: it moves every horizon by seven days. Under the
+implemented numbering the week 8 horizon sees days 0-55; under `date // 7` it
+would see days 0-62. Worth confirming against the SRS before Chapter 4 quotes
+any horizon.
+
+### An assessment with no due date is never "due by week w"
+
+**2026-09-12.** Some presentations record the exam in assessments.csv with a
+missing `date`. Such an assessment is excluded from the due schedule rather
+than being counted as due at the end, so it never contributes a zero to
+`mean_score`. Counting it as due would penalize every student in those
+presentations at whatever week was chosen for it.
+
+Related to open item 4 (whether zero-for-unsubmitted biases against students
+with extensions): the same mechanism is at work, and the same evidence will
+bear on both.
+
 ### Presentation.start_date has no column in courses.csv
 
 **2026-09-12.** The data model gives Presentation a `start_date` DateField, but
