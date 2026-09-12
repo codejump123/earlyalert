@@ -8,4 +8,5 @@ urlpatterns = [
     path("", include("accounts.urls")),
     path("", include("cohorts.urls")),
     path("", include("features.urls")),
+    path("", include("scoring.urls")),
 ]

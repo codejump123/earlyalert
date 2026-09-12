@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Retrain — EarlyAlert{% endblock %}
+{% block content %}
+  <h1>Retrain models</h1>
+  <p class="muted">
+    Fits the candidate classifiers on the 2013 presentations at each horizon,
+    keeps the best by AUC-PR, and rewrites risk scores for the 2014
+    presentations. Runs in this process; one rebuild or retrain at a time.
+  </p>
+
+  {% if result %}
+    {% if result.ok %}
+      <p class="notice">
+        Retrained {{ result.horizons|length }} horizon(s) in
+        {{ result.seconds|floatformat:1 }}s.
+        {% if result.excluded_modules %}
+          No training data for {{ result.excluded_modules|join:", " }} under the
+          year split.
+        {% endif %}
+      </p>
+      <table>
+        <tr><th>Horizon</th><th>Classifier</th><th>AUC-ROC</th><th>AUC-PR</th><th>Scored</th></tr>
+        {% for h in result.horizons %}
+          <tr>
+            <td>week {{ h.horizon_week }}</td><td>{{ h.classifier }}</td>
+            <td>{{ h.auc_roc|floatformat:3 }}</td><td>{{ h.auc_pr|floatformat:3 }}</td>
+            <td>{{ h.scored }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p class="error">Retrain refused — {{ result.error }}</p>
+    {% endif %}
+  {% endif %}
+
+  {% if blocked %}<p class="error">Cannot retrain: {{ blocked }}</p>{% endif %}
+  {% if running %}
+    <p class="notice">{{ running.name }} started {{ running.started_at }}. Reload for progress.</p>
+  {% endif %}
+
+  <p class="muted">Stored risk scores: {{ score_count }}.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" {% if blocked or running %}disabled{% endif %}>Retrain</button>
+  </form>
+
+  {% if current_models %}
+    <h2>Current models</h2>
+    <table>
+      <tr><th>Horizon</th><th>Set</th><th>Classifier</th><th>AUC-ROC</th><th>AUC-PR</th><th>Brier</th><th>Recall@P50</th><th>Trained</th></tr>
+      {% for m in current_models %}
+        <tr>
+          <td>week {{ m.horizon_week }}</td><td>{{ m.feature_set }}</td>
+          <td>{{ m.classifier }}</td>
+          <td>{{ m.auc_roc|floatformat:3 }}</td><td>{{ m.auc_pr|floatformat:3 }}</td>
+          <td>{{ m.brier|floatformat:3 }}</td><td>{{ m.recall_at_p50|floatformat:3 }}</td>
+          <td class="muted">{{ m.trained_at }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+
+  {% if progress %}
+    <h2>Progress</h2>
+    <pre class="muted" style="background:#fff;border:1px solid #e6e6e6;padding:10px;overflow-x:auto;max-height:24em">{% for line in progress %}{{ line }}
+{% endfor %}</pre>
+  {% endif %}
+{% endblock %}

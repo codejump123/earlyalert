@@ -25,6 +25,59 @@ than the one the experiment asks.
 
 Items 1-4 are untouched so far; no evidence yet.
 
+## Findings from the first full training run (2026-09-12)
+
+Measured on the real dataset, feature set All, train 2013 / test 2014.
+
+### AUC-PR is not comparable across horizons, and the headline reverses
+
+| Horizon | Base rate (majority AUC-PR) | Best | AUC-PR | Lift over baseline |
+|---|---|---|---|---|
+| week 4 | 0.197 | hgb | 0.346 | x1.75 |
+| week 8 | 0.163 | logreg | 0.307 | x1.88 |
+| week 12 | 0.135 | rf | 0.258 | x1.91 |
+
+Raw AUC-PR **falls** as the horizon gets later, which reads as "predicting
+earlier is easier". It is not. AUC-PR's floor is the positive rate, and the
+positive rate falls at every horizon because the cohort filter removes
+students who have already unregistered: 0.197 at week 4 down to 0.135 at
+week 12. Measured against that moving floor, the models get **better** with
+more data, not worse: lift rises from x1.75 to x1.91.
+
+This bears directly on the question the project asks — how prediction quality
+trades against earliness. Chapter 4 must report AUC-PR against the per-horizon
+baseline, or the grid will support the opposite conclusion to the true one.
+The majority baseline is stored as a ModelVersion at every horizon precisely so
+that comparison is always available.
+
+### Logistic regression's probabilities are ranks, not probabilities
+
+At week 12, Brier by classifier: hgb 0.110, majority 0.117, rf 0.123,
+**logreg 0.236**. Logistic regression is beaten on Brier by predicting the base
+rate for everyone, while still ranking well (AUC-PR 0.246 against the
+baseline's 0.135).
+
+This is `class_weight="balanced"`, which the SRS fixes. Re-weighting the
+classes shifts the intercept so the model behaves as if withdrawal were a
+50/50 event, and the output is systematically too high. The ordering is
+unharmed, which is why AUC-ROC and AUC-PR look fine.
+
+Consequences: the ranking page displays `probability`, and for a logreg model
+that number should be read as a position in the queue, not as a chance of
+withdrawing. Worth either calibrating the selected model before scoring or
+labelling the column as a risk score rather than a probability. Not changed
+here, because the SRS fixes both the class weighting and the field.
+
+### Collinear engagement features can distort a single student's explanation
+
+total_clicks, mean_weekly_clicks and max_weekly_clicks move together, so
+logistic regression splits large opposing coefficients between them. Across
+the cohort the explanations are sensible — mean_score, weighted_score_to_date
+and mean_weekly_clicks are the three most-cited features at week 8 — but for a
+student with extreme click counts the top three can come back as click volume
+with contradictory directions. The magnitudes are real; the per-feature
+attribution between near-duplicate columns is not stable.
+
 ## Gaps between the SRS and the data
 
 ### The SRS gives two incompatible week numberings

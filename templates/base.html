@@ -33,6 +33,7 @@
     {% if user_role == 'administrator' %}
       <a href="{% url 'upload' %}">Upload</a>
       <a href="{% url 'rebuild' %}">Rebuild</a>
+      <a href="{% url 'retrain' %}">Retrain</a>
     {% endif %}
     <span class="ctx">
       <span>Presentation: <b>{% if active_presentation %}{{ active_presentation }}{% else %}none selected{% endif %}</b></span>
